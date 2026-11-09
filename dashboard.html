@@ -92,6 +92,12 @@
   .htrk{grid-column:2 / 4; height:6px; background:var(--track); border-radius:99px; overflow:hidden; margin-top:-4px}
   .htrk div{height:100%; background:#94a3b8}
   .hi.last + .htrk div, .htrk.last div{background:var(--accent)}
+  .proj{margin-top:18px; padding-top:14px; border-top:1px solid var(--track)}
+  .proj .hi .d{color:#0f766e; font-weight:700}
+  .proj .hi .v{color:#0f766e}
+  .proj .htrk{background:transparent; border-bottom:2px dashed #99d5cf; height:6px; border-radius:0}
+  .proj .htrk div{background:repeating-linear-gradient(90deg,#0f766e 0 8px,transparent 8px 12px); border-radius:0}
+  .proj .note{font-size:11px; color:var(--ink3); margin-top:8px}
   .bd{margin-top:8px; font-size:13px; color:var(--ink2)}
   .bd .ln{display:flex; justify-content:space-between; gap:12px; padding:3px 0; border-bottom:1px dashed var(--line)}
   .bd .ln b{color:#b45309; white-space:nowrap}
@@ -195,7 +201,8 @@ function matrix(d){
   const ss = d.sessions, ca = d.criteria_average;
   const tot = ss.map(s => s.score);
   const hist = d.history || [];
-  const mx = Math.max(100, ...hist.map(h => h.score));
+  const proj = d.projection || [];
+  const mx = Math.max(100, ...hist.map(h => h.score), ...proj.map(p => p.score));
   return `
   <div class="two">
     <div class="card">
@@ -212,6 +219,15 @@ function matrix(d){
         <div class="hi ${i === hist.length - 1 ? "last" : ""}"><div class="d">${esc(h.date)}</div><div class="t">${esc(h.label)}</div><div class="v">${h.score}</div></div>
         <div class="htrk ${i === hist.length - 1 ? "last" : ""}"><div style="width:${h.score / mx * 100}%"></div></div>`).join("")}
       </div>
+      ${proj.length ? `
+      <div class="proj">
+        <div class="lbl">Projection — 향후 개선 시 예상 점수 (누적)</div>
+        <div class="hist">${proj.map(p => `
+          <div class="hi"><div class="d">예상</div><div class="t">${esc(p.label)}</div><div class="v">${p.score}</div></div>
+          <div class="htrk"><div style="width:${p.score / mx * 100}%"></div></div>`).join("")}
+        </div>
+        <div class="note">예상치: 실제 평가 결과가 아니라, 각 개선으로 해소되는 감점 항목을 기준으로 계산한 누적 추정치입니다.</div>
+      </div>` : ""}
     </div>
   </div>`;
 }
