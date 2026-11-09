@@ -1,0 +1,51 @@
+# rom_code_ex1.mem 디스어셈블 결과 (SW 검증용 테스트 프로그램)
+# instruction_rom 이 $readmemh 로 읽는 기계어를 RV32I 명령어로 역변환한 것.
+# 아래 C 코드는 기계어로부터 복원한 동등 코드임(원본 C 파일 아님).
+#
+#   int add(int a, int b) { return a + b; }
+#   int main(void) {
+#       int a = 0;        // s0-20 = 0x1000_01EC  -> BRAM word index 123
+#       int sum = 0;      // s0-24 = 0x1000_01E8  -> BRAM word index 122
+#       while (a <= 9) { a++; sum = add(sum, a); }
+#       while (1);        // PC 0x4C 에서 정지 (jal zero,0)
+#   }
+#   기대 결과: dmem[122] = 55 (0+1+...+10), dmem[123] = 10
+#
+# 스택: sp = 0x1000_0000 + 512 = 0x1000_0200 (RAM 64KB 영역 시작 + 512B)
+# PADDR = {4'b0000, addr[27:0]} 이므로 BRAM 인덱스 = (addr & 0x0FFF_FFFF) >> 2
+#
+# 주소  기계어     명령어
+  0x00  10000137  lui sp,0x10000
+  0x04  20010113  addi sp,sp,512
+  0x08  fe010113  addi sp,sp,-32
+  0x0c  00112e23  sw ra,28(sp)
+  0x10  00812c23  sw s0,24(sp)
+  0x14  02010413  addi s0,sp,32
+  0x18  fe042623  sw zero,-20(s0)
+  0x1c  fe042423  sw zero,-24(s0)
+  0x20  0200006f  jal zero,+32  -> 0x40
+  0x24  fec42783  lw a5,-20(s0)
+  0x28  00178793  addi a5,a5,1
+  0x2c  fef42623  sw a5,-20(s0)
+  0x30  fec42583  lw a1,-20(s0)
+  0x34  fe842503  lw a0,-24(s0)
+  0x38  018000ef  jal ra,+24  -> 0x50
+  0x3c  fea42423  sw a0,-24(s0)
+  0x40  fec42703  lw a4,-20(s0)
+  0x44  00900793  addi a5,zero,9
+  0x48  fce7dee3  bge a5,a4,-36  -> 0x24
+  0x4c  0000006f  jal zero,+0  -> 0x4c
+  0x50  fe010113  addi sp,sp,-32
+  0x54  00112e23  sw ra,28(sp)
+  0x58  00812c23  sw s0,24(sp)
+  0x5c  02010413  addi s0,sp,32
+  0x60  fea42623  sw a0,-20(s0)
+  0x64  feb42423  sw a1,-24(s0)
+  0x68  fec42703  lw a4,-20(s0)
+  0x6c  fe842783  lw a5,-24(s0)
+  0x70  00f707b3  add a5,a4,a5
+  0x74  00078513  addi a0,a5,0
+  0x78  01c12083  lw ra,28(sp)
+  0x7c  01812403  lw s0,24(sp)
+  0x80  02010113  addi sp,sp,32
+  0x84  00008067  jalr zero,0(ra)

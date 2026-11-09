@@ -1,0 +1,98 @@
+{
+  "project_id": "riscv",
+  "project_name": "RV32I Multi-Cycle CPU + APB SoC",
+  "dashboard_title": "RISC-V SoC Verification",
+  "team": "1조",
+  "evaluator_type": "verification",
+  "role": {
+    "member": "정명훈",
+    "title": "CPU SW 검증",
+    "summary": "C 코드 → 기계어 → ROM 로드 → CPU·APB·BRAM 경로의 시스템 레벨 동작 검증 주도."
+  },
+  "pretrain_doc": "pretrain_knowledge.md",
+  "materials": [
+    "materials/final_report_team1.txt",
+    "materials/rom_code_ex1_disasm.txt",
+    "materials/rom_code_ex1.mem",
+    "materials/tb_rv32i.sv",
+    "materials/rv32i_pkg.sv",
+    "materials/rv32i_top.sv",
+    "materials/control_unit.sv",
+    "materials/datapath.sv",
+    "materials/instruction_rom.sv",
+    "materials/apb_requester.sv",
+    "materials/apb_bram.sv",
+    "materials/uvm_README.md",
+    "materials/uvm_apb_bram_verilator.sv",
+    "materials/uvm_log_mutant_sltu_regression.log",
+    "materials/uvm_log_rv_regression_test.log",
+    "materials/uvm_log_rv_unmapped_test.log",
+    "materials/uvm_prog_alu_edge.S",
+    "materials/uvm_prog_alu_edge.exp",
+    "materials/uvm_prog_branch_jump.S",
+    "materials/uvm_prog_branch_jump.exp",
+    "materials/uvm_prog_bubble_sort.S",
+    "materials/uvm_prog_bubble_sort.exp",
+    "materials/uvm_prog_fib_recursion.S",
+    "materials/uvm_prog_fib_recursion.exp",
+    "materials/uvm_prog_mem_access.S",
+    "materials/uvm_prog_mem_access.exp",
+    "materials/uvm_prog_sum_loop.exp",
+    "materials/uvm_prog_unmapped_access.S",
+    "materials/uvm_prog_unmapped_access.exp",
+    "materials/uvm_rv32i_iss.svh",
+    "materials/uvm_rv_agent.svh",
+    "materials/uvm_rv_coverage.svh",
+    "materials/uvm_rv_env_seq_test.svh",
+    "materials/uvm_rv_items.svh",
+    "materials/uvm_rv_probe_if.sv",
+    "materials/uvm_rv_scoreboard.svh",
+    "materials/uvm_rv_types.svh",
+    "materials/uvm_rv_uvm_pkg.sv",
+    "materials/uvm_tb_rv32i_uvm_top.sv"
+  ],
+  "criteria": [
+    {
+      "id": 1,
+      "name": "명령어·기능 커버리지 확보",
+      "description": "RV32I 명령어 타입(R/I/S/L/B/U/J)과 피연산자 공간이 검증으로 얼마나 덮였는가. UVM functional coverage(cross) 설계의 타당성과 달성률, directed/SW 테스트가 UVM 범위 밖(S/L/B/U/J)을 보완하는지."
+    },
+    {
+      "id": 2,
+      "name": "SW 시나리오 기반 시스템 검증",
+      "description": "C 프로그램 → 기계어 → CPU → APB → BRAM 경로를 end-to-end로 검증했는가. 함수 호출·스택·분기·루프 종료 등 실제 프로그램 패턴을 포함하는지, 기대값(dmem[122]=55 등)을 사전에 정의하고 대조했는지."
+    },
+    {
+      "id": 3,
+      "name": "PASS/FAIL 판정 정확성",
+      "description": "reference model·scoreboard·모니터 샘플링 타이밍이 신뢰할 수 있는가. 트러블슈팅(FAIL 332,527 → 0)의 원인 분석이 타당하고 재발 방지가 되었는지, 파형 판정이 정량적 기준을 갖는지."
+    },
+    {
+      "id": 4,
+      "name": "엣지 케이스 대응 시나리오",
+      "description": "x0 쓰기, 부호 확장, 시프트 하위 5비트, SLT/SLTU 경계, 음수 분기 오프셋, JALR LSB, 서브워드/비정렬 Load·Store, 리셋 직후 동작, 오버플로 등 코너 케이스를 시나리오로 다뤘는가. RTL에 남아 있는 미검증 결함이 있는지."
+    },
+    {
+      "id": 5,
+      "name": "버스 프로토콜·통합 안정성",
+      "description": "APB SETUP/ACCESS 순서, 주소/데이터 hold, PSEL 디코딩, PREADY 대기(wait state), back-to-back 전송, 미할당 주소 접근 등 통합 동작을 검증했는가. CPU MEM 상태와 APB ready 핸드셰이크가 안전한지."
+    }
+  ],
+  "sessions": [
+    {
+      "id": 1,
+      "label": "1차 (독립)",
+      "focus": "이전·다른 세션의 결과는 알 수 없고 참고하지 않는다. 5개 기준 전체를 동일한 기준과 동일한 자료로 처음부터 독립적으로 채점하라."
+    },
+    {
+      "id": 2,
+      "label": "2차 (독립)",
+      "focus": "이전·다른 세션의 결과는 알 수 없고 참고하지 않는다. 5개 기준 전체를 동일한 기준과 동일한 자료로 처음부터 독립적으로 채점하라."
+    },
+    {
+      "id": 3,
+      "label": "3차 (독립)",
+      "focus": "이전·다른 세션의 결과는 알 수 없고 참고하지 않는다. 5개 기준 전체를 동일한 기준과 동일한 자료로 처음부터 독립적으로 채점하라."
+    }
+  ]
+}

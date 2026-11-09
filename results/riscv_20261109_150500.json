@@ -1,0 +1,767 @@
+{
+  "project_id": "riscv",
+  "project_name": "RV32I Multi-Cycle CPU + APB SoC",
+  "dashboard_title": "RISC-V SoC Verification",
+  "team": "1조",
+  "evaluator_type": "verification",
+  "role": {
+    "member": "정명훈",
+    "title": "CPU SW 검증",
+    "summary": "C 코드 → 기계어 → ROM 로드 → CPU·APB·BRAM 경로의 시스템 레벨 동작 검증 주도."
+  },
+  "model": "Claude (claude-opus-5-5)",
+  "evaluated_at": "2026-11-09 15:05:00",
+  "run_id": "20261109_150500",
+  "final_score": 76,
+  "criteria_average": [
+    {
+      "id": 1,
+      "name": "명령어·기능 커버리지 확보",
+      "score": 75,
+      "per_session": [
+        77,
+        78,
+        71
+      ]
+    },
+    {
+      "id": 2,
+      "name": "SW 시나리오 기반 시스템 검증",
+      "score": 79,
+      "per_session": [
+        82,
+        79,
+        75
+      ]
+    },
+    {
+      "id": 3,
+      "name": "PASS/FAIL 판정 정확성",
+      "score": 75,
+      "per_session": [
+        77,
+        75,
+        73
+      ]
+    },
+    {
+      "id": 4,
+      "name": "엣지 케이스 대응 시나리오",
+      "score": 77,
+      "per_session": [
+        80,
+        76,
+        76
+      ]
+    },
+    {
+      "id": 5,
+      "name": "버스 프로토콜·통합 안정성",
+      "score": 71,
+      "per_session": [
+        72,
+        71,
+        69
+      ]
+    }
+  ],
+  "sessions": [
+    {
+      "id": 1,
+      "label": "1차 (독립)",
+      "focus": "이전·다른 세션의 결과는 알 수 없고 참고하지 않는다. 5개 기준 전체를 동일한 기준과 동일한 자료로 처음부터 독립적으로 채점하라.",
+      "score": 78,
+      "pretrain_summary": "# 사전학습 정리 (RV32I Multi-Cycle CPU + APB SoC)\n\n1. 프로젝트 개요\n- RV32I 정수 명령어를 FETCH/DECODE/EXECUTE/MEM/WB 5상태 FSM으로 실행하는 Multi-Cycle CPU에 APB 버스와 BRAM을 붙인 교육용 SoC(1조)다.\n- 검증은 명령어 타입별 directed 파형, R/I 타입 UVM(PASS 541,489, coverage 100%), APB 파형, SW(rom_code_ex1: 1~10 누적합, dmem[122]=55) 파형 확인으로 이루어졌다.\n- 보고서 제출 이후 SW 시나리오 UVM 환경(rv32i_uvm_sw, AI 도움, Verilator 실행)을 보완했다. 결과는 6개 프로그램 1,211개 명령어 ISS 비교, 기대값 68/68 일치, 음성 테스트 1개, 변이 테스트 1개다.\n\n2. 핵심 아키텍처/구성 요소\n- control_unit: opcode별 제어 FSM. S/L만 MEM(transfer, ready 대기)으로 가고 L만 WB로 간다. EXECUTE의 case(opcode)에 default가 없다.\n- datapath: reg_file(x0=0, 리셋 없음), DEC/EXE/MEM 단계 레지스터, ALU, imm_extend, PC(U_EXE_PC_NEXT), WB MUX로 구성된다.\n- apb_requester: IDLE에서 주소/데이터를 래치하고 SETUP, ACCESS로 진행한다. address_decoder(PADDR[31:28]로 RAM/주변장치 구분, default 없음)와 apb_mux(기본 PREADY0)를 포함한다.\n- apb_bram: 128워드(512B, 메모리맵 64KB와 불일치), itype 기반 서브워드 R/W, PREADY=PSEL&PENABLE(wait state 없음), 비선택 시 PRDATA='z. GPI/GPO RTL은 제출되지 않았다.\n- UVM SW 환경: ROM 백도어 driver, DECODE 경계 커밋 monitor(#1step), SV ISS 참조 모델, lock-step 및 최종 상태/.exp를 비교하는 scoreboard, 6종 covergroup으로 구성된다.\n\n3. 평가 대상자 R&R\n- 정명훈: CPU SW 검증. C 코드부터 기계어, ROM, CPU, APB, BRAM까지 시스템 레벨 경로를 검증한다.\n- 책임 범위: 시나리오 설계, 기대값 정의, PASS 판정, SW 경로에서 발견되는 CPU/버스 결함 식별. 보고서 이후 보완한 UVM SW 환경도 산출물에 포함한다.\n\n4. 검증 관점 중점 사항\n- 커버리지: 명령어 37종과 경계값/시프트/오프셋 달성률, 팀 UVM cross 설계(레지스터 인덱스 기준)의 타당성.\n- 판정 신뢰성: 원본 tb_rv32i.sv는 파형 육안 판정뿐이다. 새 환경은 ISS 비교가 자동이지만 Verilator 2-state, RTL을 흉내 낸 참조 모델 등의 한계가 있다.\n- 엣지 케이스: x0, 부호 확장, SLT/SLTU, JALR LSB, 서브워드 처리는 다뤘다. 미정의 opcode, 비정렬 접근, 리셋, BRAM 범위 밖 접근이 남은 빈틈이다.\n- 버스: 미할당 주소 hang을 재현했지만 수정하지 않았다. wait state, back-to-back 전송, PSEL1~6 경로, APB 프로토콜 assertion이 없다.\n- 보고서 수치/코드의 불일치(slide 03 sp=512 코드와 실제 ROM이 다름 등)와 '로그로 입증된 범위만 인정' 원칙을 적용한다.\n",
+      "criteria": [
+        {
+          "id": 1,
+          "name": "명령어·기능 커버리지 확보",
+          "score": 77,
+          "evidence": [
+            "uvm_log_rv_regression_test.log: 명령어 37종 100%, 분기×taken/not-taken 100%, Load/Store×오프셋 95.00%, ALU 피연산자 경계값 83.93%, 시프트 양 84.72%, 기타 코너 100%",
+            "uvm_rv_coverage.svh: cg_instr/cg_branch/cg_mem/cg_alu/cg_shift/cg_misc 6종 covergroup으로 S/L/B/U/J까지 덮어 팀 UVM(R/I 19개)의 범위 밖을 보완",
+            "final_report_team1.txt 05장: R/I 타입 UVM은 R 10×1024(rs1×rs2), I 6×4096(imm), I-shift 3×32 cross, coverage 100%",
+            "rom_code_ex1_disasm.txt: 보고서 시점 SW 검증 프로그램은 LUI/ADDI/SW/LW/JAL/JALR/BGE/ADD 8종만 사용"
+          ],
+          "weaknesses": [
+            "ALU 경계값 83.93%, 시프트 양 84.72%, Load/Store 오프셋 95%로 구멍이 남았는데 이를 채우는 시나리오를 추가하지 않음(uvm_README.md '남은 구멍은 새 .S 시나리오를 추가해서 채우면 됩니다')",
+            "팀 UVM cross가 피연산자 값이 아닌 레지스터 인덱스(rs1×rs2) 기준이라 값 공간을 덮지 못함. 보고서 08장 고찰에서도 스스로 인정",
+            "SW 시나리오는 모두 directed .S이고 무작위 프로그램 생성(constrained random instruction stream)이 없어 명령어 조합 공간이 제한적",
+            "보고서 제출 시점 평가 대상자의 SW 검증은 단일 프로그램(8개 명령어)뿐이었고, 37종 커버리지는 사후 보완 결과"
+          ],
+          "rationale": "사후 보완한 UVM SW 환경이 명령어 37종과 분기 방향을 100% 덮고 팀 UVM의 S/L/B/U/J 공백을 메운 점은 로그로 입증된다. 그러나 경계값/시프트 커버리지가 85% 수준에서 마감되지 않았고, 커버리지 설계가 directed 위주이며 레지스터 인덱스 기준이라 75~89 구간 하단으로 판단했다.",
+          "score_breakdown": [
+            {
+              "item": "ALU 경계값 83.93%, 시프트 84.72%, LS 오프셋 95% 미달 상태로 커버리지 closure 미완 (uvm_log_rv_regression_test.log)",
+              "points": -6
+            },
+            {
+              "item": "팀 UVM cross가 레지스터 인덱스 기준이고 R/I 타입만 대상이라 피연산자 값 공간 미측정 (final_report 05장, 08장 고찰)",
+              "points": -5
+            },
+            {
+              "item": "SW 시나리오가 directed 6개뿐이고 무작위 명령어 스트림 없음 (uvm_rv_env_seq_test.svh)",
+              "points": -5
+            },
+            {
+              "item": "보고서 시점 SW 검증은 8개 명령어를 쓰는 단일 프로그램에 그침. 37종 커버리지는 사후 보완 (rom_code_ex1_disasm.txt, pretrain 4장)",
+              "points": -4
+            },
+            {
+              "item": "미정의 opcode/비정렬 접근을 커버리지 모델에서 제외 (uvm_rv_coverage.svh ignore_bins, cg_instr illegal_bins)",
+              "points": -3
+            }
+          ]
+        },
+        {
+          "id": 2,
+          "name": "SW 시나리오 기반 시스템 검증",
+          "score": 82,
+          "evidence": [
+            "rom_code_ex1_disasm.txt / rom_code_ex1.mem: C 코드에서 복원한 기계어로 스택 프레임, add 함수 호출/복귀(jal/jalr), BGE 루프, while(1) 정지를 포함하고 기대값 dmem[122]=55, dmem[123]=10을 사전 정의",
+            "final_report_team1.txt 07장: Jump/BGE/a++/Result(dmem[122]=55)/Loop(PC=0x4C 고정)를 파형으로 확인",
+            "uvm_log_rv_regression_test.log: sum_loop, alu_edge, branch_jump, mem_access, fib_recursion, bubble_sort 6개 모두 PASS, 기대값 68/68, 명령어 1,211개 lock-step 비교",
+            "uvm_prog_fib_recursion.S: 재귀 fib(7), ra/s0/s1 저장·복원, sp 최종 복원(0x10000200)과 호출 횟수 41까지 기대값으로 확인"
+          ],
+          "weaknesses": [
+            "보고서 시점 SW 검증은 tb_rv32i.sv(15,000ns 실행 후 $finish, 체크 코드 없음)와 단일 프로그램의 파형 육안 확인뿐",
+            "C 컴파일 경로를 실제로 거친 것은 팀 원본 sum_loop뿐이고, 추가 시나리오는 손으로 쓴 .S(C 형태 주석)라 컴파일러 산출 코드 패턴 검증이 제한적",
+            "GPI/GPO 등 주변장치 MMIO 접근은 SW 시나리오에 없음. 제출 RTL(rv32i_top)에도 BRAM만 연결",
+            "sum_loop에서 미초기화 ra/s0를 스택에 저장하는 X_STORE 경고 2건을 경고로만 처리하고 테스트 프로그램을 보정하지 않음"
+          ],
+          "rationale": "함수 호출, 스택, 분기, 루프 종료를 포함한 실제 프로그램을 사전 기대값과 대조하는 end-to-end 검증이 사후 UVM 환경에서 6개 프로그램으로 자동 입증되었다. 다만 보고서 시점 산출물은 파형 육안 판정 단일 시나리오였고, 컴파일 경로와 주변장치 경로가 빠져 80점대 초반으로 판단했다.",
+          "score_breakdown": [
+            {
+              "item": "보고서 시점 SW 검증이 tb_rv32i.sv 단일 프로그램 파형 판정에 그침. 자동화는 사후 보완 (tb_rv32i.sv, final_report 07장)",
+              "points": -5
+            },
+            {
+              "item": "C→기계어 컴파일 경로는 sum_loop 1건뿐이고 나머지는 수작성 어셈블리 (uvm_prog_*.S, uvm_README.md)",
+              "points": -5
+            },
+            {
+              "item": "주변장치(GPI/GPO) MMIO 경로가 SW 시나리오와 RTL에서 빠짐 (rv32i_top.sv, pretrain 2-3)",
+              "points": -3
+            },
+            {
+              "item": "보고서 slide 03 스택 코드와 ROM 불일치, slide 06 PADDR 환산 오류 (final_report_team1.txt, rom_code_ex1.mem)",
+              "points": -3
+            },
+            {
+              "item": "sum_loop의 미초기화 레지스터 저장(X_STORE 2건)을 방치 (uvm_log_rv_regression_test.log)",
+              "points": -2
+            }
+          ]
+        },
+        {
+          "id": 3,
+          "name": "PASS/FAIL 판정 정확성",
+          "score": 77,
+          "evidence": [
+            "uvm_rv_scoreboard.svh: 명령어마다 PC, rd 대상/값, store PADDR/PWDATA/크기, load 주소를 ISS와 lock-step 비교하고, 종료 시 레지스터 31개, BRAM, .exp를 비교",
+            "uvm_rv_probe_if.sv: mon_cb가 #1step 입력 샘플링으로 posedge 직전 값을 잡아 race를 방지",
+            "uvm_log_mutant_sltu_regression.log: SLTU를 signed로 바꾼 변이 RTL에서 RD_VALUE/ST_DATA/FINAL_REG/FINAL_MEM/EXPECT 19 errors 검출",
+            "final_report_team1.txt 08장: 모니터 샘플링 타이밍 문제로 FAIL 332,527 발생, 수정 후 FAIL 0"
+          ],
+          "weaknesses": [
+            "Verilator(2-state)로만 실행하고 VCS에서는 실행하지 않음. poison_state()의 'x가 0으로 바뀌어 DUT 쪽 X 전파 검사($isunknown)가 무력화되고, apb_bram도 'z→0으로 수정한 파일(uvm_apb_bram_verilator.sv)로 돌림",
+            "rv32i_iss.svh 메모리 모델이 RTL 구현(512B, 비정렬 SH 쓰기 없음, 비정렬 LH 0 반환)을 그대로 따라 해서, 스펙 대비 오류는 common-mode로 검출되지 않을 수 있음",
+            "scoreboard가 사이클 수 불일치(n_lat_mismatch)를 세기만 하고 보고하거나 판정에 쓰지 않음",
+            "변이 테스트가 SLTU 1건뿐이라 환경의 결함 검출력 입증이 제한적"
+          ],
+          "rationale": "ISS 참조 모델과 lock-step scoreboard, #1step 샘플링, 변이 검출로 자동 판정의 신뢰성이 로그로 입증된다. 그러나 2-state 시뮬레이터에서 수정된 RTL로만 실행했고, 참조 모델이 RTL 동작을 모사하며, 팀 UVM의 원인 분석과 수정이 우회적이어서 상당한 보완이 필요하다.",
+          "score_breakdown": [
+            {
+              "item": "Verilator 2-state 단독 실행으로 X-poisoning 무력화, 수정된 apb_bram으로 회귀 수행, VCS 미실행 (uvm_README.md, uvm_apb_bram_verilator.sv)",
+              "points": -6
+            },
+            {
+              "item": "ISS 메모리 모델이 RTL의 512B/비정렬 동작을 모사해 common-mode 위험 (uvm_rv32i_iss.svh do_store/do_load)",
+              "points": -4
+            },
+            {
+              "item": "원본 SW 판정이 파형 육안 확인뿐이고 정량적 자동 기준 없음 (tb_rv32i.sv, final_report 07장)",
+              "points": -4
+            },
+            {
+              "item": "팀 UVM 트러블슈팅이 #1 지연 우회 방식이라 근본 원인 분석이 피상적이고, PASS 개수 일치에 의존 (final_report 05·08장)",
+              "points": -4
+            },
+            {
+              "item": "사이클 수 불일치(n_lat_mismatch)를 판정·보고에 쓰지 않음 (uvm_rv_scoreboard.svh)",
+              "points": -3
+            },
+            {
+              "item": "변이 테스트 1건(SLTU)뿐 (uvm_log_mutant_sltu_regression.log)",
+              "points": -2
+            }
+          ]
+        },
+        {
+          "id": 4,
+          "name": "엣지 케이스 대응 시나리오",
+          "score": 80,
+          "evidence": [
+            "uvm_prog_alu_edge.S: INT_MAX+1/INT_MIN-1 wrap, SLT/SLTU 부호 경계, SRA/SRAI 부호 유지, 시프트 양 33→하위 5비트, 즉시값 -2048/2047 부호 확장, x0 쓰기 무시 등 25개 기대값 PASS",
+            "uvm_prog_branch_jump.S: 분기 6종 taken/not-taken(signed/unsigned 경계), backward 루프, JALR 홀수 타깃 LSB 클리어, rd==rs1, AUIPC/LUI 6개 기대값 PASS",
+            "uvm_prog_mem_access.S: SB 4레인, SH 상/하위, LB/LBU/LH/LHU 부호/제로 확장, 음수 오프셋, store 직후 load 18개 PASS",
+            "uvm_rv_agent.svh rv_monitor: FSM_STUCK(EXECUTE 64사이클) 검출기 구현"
+          ],
+          "weaknesses": [
+            "control_unit.sv EXECUTE의 case(opcode)에 default가 없어 미정의 opcode이면 n_state=c_state로 EXECUTE에 영구 정지함. FSM_STUCK 검출기는 있으나 이를 노리는 음성 시나리오가 없어 결함이 미검증으로 남음",
+            "비정렬 LH/LHU/SH/LW는 ISS에서 'RTL 동작'으로 정의하고 커버리지에서 제외해 시나리오로 다루지 않음",
+            "reg_file은 rst_n을 쓰지 않아 리셋이 없음. 2-state 실행 탓에 미초기화 값 영향이 드러나지 않고, 동작 중 리셋 시나리오도 없음",
+            "apb_bram은 128워드(512B)인데 메모리맵은 64KB임. 0x1000_0200 이상 접근(dmem 인덱스 128 이상)은 ISS 경고만 있고 시나리오가 없음"
+          ],
+          "rationale": "사전학습에 열거된 RV32I 코너 케이스 대부분을 기대값이 있는 시나리오로 다뤄 PASS시켰다. 그러나 미정의 opcode로 인한 FSM hang, 리셋, 비정렬 접근, BRAM 용량 경계가 시나리오에서 빠져 RTL 결함이 미검증으로 남았다.",
+          "score_breakdown": [
+            {
+              "item": "control_unit EXECUTE case(opcode) default 부재로 미정의 opcode 시 FSM 정지. 시나리오 미작성 (control_unit.sv)",
+              "points": -6
+            },
+            {
+              "item": "reg_file 리셋 없음, 동작 중 리셋 미검증, 2-state로 미초기화 영향 은폐 (datapath.sv reg_file, uvm_README.md)",
+              "points": -4
+            },
+            {
+              "item": "BRAM 512B 대 메모리맵 64KB 경계 밖 접근 시나리오 없음 (apb_bram.sv dmem[0:127], uvm_rv32i_iss.svh map_idx)",
+              "points": -4
+            },
+            {
+              "item": "비정렬 Load/Store를 시나리오와 커버리지에서 제외 (uvm_rv_coverage.svh ignore_bins, uvm_rv32i_iss.svh)",
+              "points": -3
+            },
+            {
+              "item": "ALU 경계값 cross 83.93% 미달 (uvm_log_rv_regression_test.log)",
+              "points": -3
+            }
+          ]
+        },
+        {
+          "id": 5,
+          "name": "버스 프로토콜·통합 안정성",
+          "score": 72,
+          "evidence": [
+            "final_report_team1.txt 06장: STATE 순서(PSEL0→PENABLE→ready), Address Decode, Address/Data HOLD, BRAM R/W 파형 확인(김태수 담당)",
+            "uvm_log_rv_unmapped_test.log: 0x3000_0000 store 시 BUS_HANG(MEM 상태 64사이클 ready 없음)과 KNOWN_BUG로 address_decoder default 부재 결함 재현",
+            "uvm_rv_scoreboard.svh: 모든 store/load의 PADDR({4'b0000, addr[27:0]})·PWDATA·itype을 APB 완료 시점(PSEL0&PENABLE&PREADY0)에서 ISS와 비교",
+            "uvm_rv_agent.svh: MEM 상태 ready 대기 hang 검출기 구현"
+          ],
+          "weaknesses": [
+            "address_decoder.sv 미할당 주소 결함을 재현만 하고 수정하거나 에러 응답(PSLVERR)을 추가하지 않음. apb_mux 기본값 ready=PREADY0=0으로 CPU가 MEM에서 영구 정지하는 결함이 RTL에 남음",
+            "apb_bram PREADY=PSEL&PENABLE 고정이라 wait state(PREADY 지연) 상황을 한 번도 검증하지 않음. CPU MEM과 ready 핸드셰이크의 지연 내성이 미입증",
+            "APB 프로토콜 assertion(SVA: SETUP→ACCESS 순서, PADDR/PWDATA hold, 단일 PSEL)이 없음. 프로토콜 확인은 보고서 파형 캡처뿐",
+            "주변장치 PSEL1~6 경로가 미통합(GPI/GPO RTL 미제출, rv32i_top은 BRAM만 연결)이고 monitor도 PSEL0만 관측"
+          ],
+          "rationale": "음성 시나리오로 미할당 주소 hang 결함을 자동 재현하고 모든 APB 전송의 주소/데이터를 비교한 점은 의미 있다. 그러나 결함이 수정되지 않았고 wait state, 프로토콜 assertion, 주변장치 통합이 빠져 통합 안정성 입증은 부분 충족에 머문다.",
+          "score_breakdown": [
+            {
+              "item": "미할당 주소 hang 결함을 재현만 하고 미수정, PSLVERR/에러 응답 없음 (apb_requester.sv address_decoder, uvm_log_rv_unmapped_test.log)",
+              "points": -6
+            },
+            {
+              "item": "PREADY wait state 미검증, BRAM PREADY 고정 (apb_bram.sv)",
+              "points": -6
+            },
+            {
+              "item": "APB 프로토콜 SVA 부재, 순서/hold 확인은 파형뿐 (final_report 06장, uvm_rv_probe_if.sv)",
+              "points": -5
+            },
+            {
+              "item": "PSEL1~6 주변장치 경로 미통합, monitor PSEL0만 관측 (rv32i_top.sv, uvm_rv_agent.svh)",
+              "points": -5
+            },
+            {
+              "item": "back-to-back/전송 중 리셋 미검증, PRDATA 'z 처리를 툴별 우회 (apb_bram.sv, uvm_apb_bram_verilator.sv)",
+              "points": -6
+            }
+          ]
+        }
+      ],
+      "summary": "ISS 기반 자동 판정으로 SW 검증은 탄탄하나 버스 결함 미해결",
+      "improvements": [
+        "address_decoder에 default 에러 슬레이브(PREADY=1, PSLVERR=1)를 추가하고 control_unit EXECUTE에 미정의 opcode default 처리를 넣은 뒤, rv_unmapped_test와 미정의 opcode 음성 시나리오를 PASS로 전환",
+        "VCS 등 4-state 시뮬레이터에서 원본 RTL로 회귀를 재실행해 X 전파를 검사하고, 무작위 PREADY 지연을 넣는 BRAM 모델과 APB SVA(순서/hold/단일 PSEL)를 추가",
+        "ALU 경계값·시프트·비정렬/BRAM 경계 시나리오와 무작위 명령어 스트림을 추가해 커버리지를 100%로 마감하고, 변이 테스트를 여러 결함 유형으로 확대"
+      ]
+    },
+    {
+      "id": 2,
+      "label": "2차 (독립)",
+      "focus": "이전·다른 세션의 결과는 알 수 없고 참고하지 않는다. 5개 기준 전체를 동일한 기준과 동일한 자료로 처음부터 독립적으로 채점하라.",
+      "score": 76,
+      "pretrain_summary": "1. 프로젝트 개요\n- RV32I Multi-Cycle CPU(FETCH→DECODE→EXECUTE→MEM→WB 5상태 FSM)와 APB 버스, BRAM을 묶은 교육용 SoC 프로젝트다(1조, final_report_team1.txt).\n- 검증은 명령어 타입별 directed 파형, R/I 19개 명령어 UVM(PASS 541,489, coverage 100%), rom_code_ex1(1~10 누적합) SW 파형 검증으로 이루어졌다.\n- 보고서 이후 UVM SW 시나리오 환경(rv32i_uvm_sw, Verilator 5.053)을 추가했다: 7개 시나리오, ISS lock-step 비교, 기대값 68/68, 음성/변이 테스트 포함.\n\n2. 핵심 아키텍처/구성 요소\n- control_unit: opcode별 EXECUTE 제어. S/L만 MEM(transfer=1, ready 대기)을 거치고 L은 WB까지 간다. EXECUTE case에 default가 없다.\n- datapath: x0 하드와이어 reg_file(리셋 없음), DEC/EXE/MEM 단계 레지스터, ALU, imm_extend, PC(branch/jal/jalr, JALR LSB 클리어), WB MUX.\n- apb_requester: IDLE에서 주소/데이터를 래치하는 IDLE/SETUP/ACCESS FSM. address_decoder(PADDR[31:28], [11:8])는 미할당 주소 default가 없고, apb_mux가 PRDATA/PREADY를 고른다.\n- apb_bram: 128워드(512B, 메모리맵 64KB와 다름). SB/SH/SW, LB/LH/LW/LBU/LHU를 처리하고 PREADY=PSEL&PENABLE이라 wait state가 없다. 비정렬 SH는 쓰지 않고 LH는 0을 반환한다. 비선택 시 PRDATA='z.\n- rv32i_top에는 BRAM만 연결되어 있다. PREADY1~6/PRDATA1~6은 구동하는 곳이 없고 GPI/GPO RTL은 제출되지 않았다. 추가 UVM 환경: driver(ROM 백도어), monitor(#1step, BUS_HANG/FSM_STUCK), ISS, scoreboard, coverage.\n\n3. 평가 대상자의 역할(R&R)과 책임 범위\n- 정명훈: CPU SW 검증. C 코드 → 기계어 → ROM → CPU/APB/BRAM 경로의 시스템 레벨 동작을 검증하는 역할이다.\n- 책임 범위: SW 시나리오 설계, 기대값 정의, PASS 판정, SW 경로에서 드러나는 CPU/버스 결함 식별. 보고서 이후 보완된 UVM SW 환경도 산출물에 포함하되, 로그로 입증된 범위만 인정한다.\n\n4. 검증 관점 중점 사항\n- 커버리지: 37개 명령어/분기/LS 오프셋은 100·100·95%이고 ALU 경계 83.93%, 시프트 84.72%로 남은 구멍이 있다. 보고서 UVM의 rs1×rs2는 값이 아닌 인덱스 기반이다.\n- 판정 신뢰성: 원본 tb_rv32i.sv는 육안 파형 판정에 고정 15,000ns였다. ISS가 RTL 동작에 맞춘 참조 모델이라는 점, Verilator 2-state에서 X 초기화가 약해지는 점, 332,527 FAIL 원인 분석의 타당성을 본다.\n- 엣지/결함: 디코더 default 부재(미정의 opcode 시 EXECUTE 정지), 비정렬 접근 무시, 512B 밖 RAM 주소, 리셋 중 동작이 시나리오로 다뤄졌는지 본다.\n- 버스: PREADY wait state가 한 번도 실행되지 않았는지, APB 프로토콜 자동 체커가 있는지, 미할당/주변장치 영역 접근 hang(PSLVERR 없음)을 확인한다.\n- 평가 대상자 범위(SW 경로) 비중을 높이고, 범위 밖(파이프라인 해저드, 양산 기능)은 감점하지 않는다.\n",
+      "criteria": [
+        {
+          "id": 1,
+          "name": "명령어·기능 커버리지 확보",
+          "score": 78,
+          "evidence": [
+            "uvm_log_rv_regression_test.log: 명령어(37종) 100.00%, 분기 x taken/not-taken 100.00%, Load/Store x 오프셋 95.00%, ALU 피연산자 경계값 83.93%, 시프트 양 84.72%, 기타 코너 100.00%",
+            "uvm_rv_coverage.svh: cg_instr(37 bins), cg_branch(6종 x taken cross), cg_mem(종류 x 바이트 오프셋 cross), cg_alu, cg_shift, cg_misc(x0/JALR 홀수/latency)로 S/L/B/U/J까지 덮는 커버리지 모델",
+            "final_report_team1.txt 05. UVM Verification Coverage 슬라이드: R x rs1 x rs2 = 10 x 1024, I x imm = 6 x 4096, I shift x imm = 3 x 32, 100% 달성(R/I 19개 명령어)",
+            "uvm_prog_*.S 6개 정상 시나리오가 UVM 범위 밖이던 S/L/B/U/J 타입(LB~LHU, SB/SH, BLTU/BGEU, AUIPC, JALR)을 보완"
+          ],
+          "weaknesses": [
+            "ALU 경계값 83.93%, 시프트 양 84.72%, Load/Store 오프셋 95%가 미달인데 구멍을 메우는 시나리오를 추가하지 않음(uvm_README.md '새 .S 시나리오를 추가해서 채우면 됩니다')",
+            "uvm_rv_coverage.svh cg_alu: rs1 값 분류만 cross하고 cp_rs2는 cross에 넣지 않음, 대상도 8개 연산뿐이며 분기 오프셋 부호, imm 범위, rd에 대한 coverpoint가 없음",
+            "보고서 UVM 커버리지(05. Coverage)의 rs1 x rs2는 레지스터 인덱스 조합(0~31)이지 피연산자 값 공간이 아님(보고서 08. 고찰 (3)에서 자인)",
+            "원본 SW 검증(rom_code_ex1.mem)은 LUI/ADDI/SW/LW/JAL/JALR/BGE/ADD 8종뿐이고 보고서 시점에는 커버리지를 측정하지 않음"
+          ],
+          "rationale": "보완 UVM 환경에서 37개 명령어와 분기 방향을 100% 덮어 타입 커버리지는 충족했다. 하지만 피연산자 경계, 시프트, 오프셋 커버리지를 마무리하지 않았고 cross 설계(rs2·분기 오프셋 누락, 보고서의 인덱스 기반 cross)에 한계가 있다.",
+          "score_breakdown": [
+            {
+              "item": "ALU 경계값 83.93%/시프트 84.72%/LS 오프셋 95% 미달 상태로 마감 (uvm_log_rv_regression_test.log)",
+              "points": -6
+            },
+            {
+              "item": "cg_alu에 rs2 cross 없음, 분기 오프셋 부호·imm·rd coverpoint 부재 (uvm_rv_coverage.svh)",
+              "points": -5
+            },
+            {
+              "item": "보고서 UVM cross가 레지스터 인덱스 기반이라 값 공간 커버리지가 아님 (final_report 05. Coverage, 08. 고찰)",
+              "points": -4
+            },
+            {
+              "item": "보고서 시점 SW 검증은 8종 명령어, 커버리지 미측정 (rom_code_ex1_disasm.txt, final_report 07)",
+              "points": -3
+            },
+            {
+              "item": "미정의 opcode 미검증, 단일 툴·단일 회귀 결과만 존재 (uvm_rv_coverage.svh, uvm_README.md)",
+              "points": -4
+            }
+          ]
+        },
+        {
+          "id": 2,
+          "name": "SW 시나리오 기반 시스템 검증",
+          "score": 79,
+          "evidence": [
+            "rom_code_ex1_disasm.txt: 기대값 dmem[122]=55, dmem[123]=10, PC 0x4C 정지를 사전 정의. uvm_prog_sum_loop.exp(M 100001e8 37, M 100001ec 0a)로 자동 대조",
+            "final_report_team1.txt 07. SW Verification: Jump/Bge/a++/Result(Dmem[122]=55)/Loop(PC=4C 고정) 5개 항목 시나리오와 신호 정의, 파형 확인",
+            "uvm_log_rv_regression_test.log: sum_loop, alu_edge, branch_jump, mem_access, fib_recursion, bubble_sort 6개 프로그램 PASS, 명령어 1,211개 lock-step 비교, 기대값 68/68, err 0",
+            "uvm_prog_fib_recursion.S(재귀, 스택 push/pop, ra/s0/s1 복원, sp 최종 복원 확인), uvm_prog_bubble_sort.S(중첩 루프, 메모리 swap, signed 정렬)로 실제 프로그램 패턴 확장"
+          ],
+          "weaknesses": [
+            "보고서 시점 tb_rv32i.sv는 리셋 해제 후 #15000에 $finish만 하며 판정 로직, halt 감지, 기대값 비교가 전혀 없음(파형 육안 판정)",
+            "'C 코드 → 컴파일' 단계의 근거가 없음: rom_code_ex1의 C 코드는 기계어에서 복원한 것(원본 C 파일 아님)이고 추가 시나리오 6개는 모두 어셈블리(.S)임",
+            "보고서 03. Memory Map Stack Point 슬라이드의 코드(0x00 20000113 addi sp, zero, 512)가 제출된 rom_code_ex1.mem(0x00 lui sp,0x10000)과 다름. 슬라이드 코드라면 sp=0x200이 미할당 영역이 됨",
+            "SW 경로가 BRAM에만 한정됨: rv32i_top에 GPI/GPO가 연결되지 않아 주변장치 MMIO를 거치는 SW 시나리오가 없음"
+          ],
+          "rationale": "기대값을 사전에 정의하고, 함수 호출·스택·루프·재귀를 포함한 다수 SW 프로그램을 ISS와 비교해 end-to-end로 자동 입증한 점은 평가 대상자 책임 범위에서 가장 강한 성과다. 다만 C 컴파일 흐름의 근거가 없고, 원본 검증은 육안 판정이었으며, 주변장치 경로가 빠져 있고, 원본 RTL로는 실행하지 않았다.",
+          "score_breakdown": [
+            {
+              "item": "원본 tb_rv32i.sv에 자동 판정·halt 감지 없음, 고정 15,000ns 실행 (tb_rv32i.sv)",
+              "points": -5
+            },
+            {
+              "item": "C 소스 → 컴파일 단계 근거 부재, 추가 시나리오는 어셈블리 (rom_code_ex1_disasm.txt, uvm_prog_*.S)",
+              "points": -5
+            },
+            {
+              "item": "보고서 스택 예시 코드와 제출 기계어 불일치 (final_report 03. Memory Map vs rom_code_ex1.mem)",
+              "points": -3
+            },
+            {
+              "item": "GPI/GPO 등 주변장치 경로 SW 시나리오 없음 (rv32i_top.sv, uvm_README.md)",
+              "points": -4
+            },
+            {
+              "item": "자동 판정이 Verilator + 수정 BRAM에서만 입증, 원본 RTL로 실행 안 함 (uvm_apb_bram_verilator.sv, uvm_README.md)",
+              "points": -4
+            }
+          ]
+        },
+        {
+          "id": 3,
+          "name": "PASS/FAIL 판정 정확성",
+          "score": 75,
+          "evidence": [
+            "uvm_rv_scoreboard.svh: 명령어마다 PC, rd 대상·값, store PADDR/PWDATA/크기, load 주소를 ISS와 비교하고 종료 시 레지스터 31개, BRAM, .exp 기대값까지 3중으로 비교",
+            "uvm_rv_probe_if.sv: clocking mon_cb @(posedge clk) default input #1step로 race 없이 직전 사이클 값을 샘플링",
+            "uvm_log_mutant_sltu_regression.log: SLTU를 signed 비교로 바꾼 변이 RTL에서 RD_VALUE/ST_DATA/FINAL_REG/FINAL_MEM/EXPECT 오류 19건으로 TEST FAILED. 환경의 검출력을 입증",
+            "final_report_team1.txt 08. Troubleshooting: FAIL 332,527 → 0, 원인은 '결과 값을 상승 에지 1step에서 인식'이라고 기술"
+          ],
+          "weaknesses": [
+            "보고서 시점 SW 검증(07)은 파형 캡처 육안 확인뿐이며 정량적 PASS 기준(비교 항목, 허용 조건, 자동 카운트)이 없음",
+            "트러블슈팅의 해결책 'clocking을 거치지 않고 상승 에지 1ns 뒤에 인식'은 임의 지연에 의존하는 방식이고, 근본 원인(예측값과 DUT 레지스터 단계의 사이클 정렬) 분석과 재발 방지 근거가 부족함",
+            "Verilator 2-state에서는 poison_state()의 'x가 0이 되어 rd_known/$isunknown 검사와 X 전파 검증이 무력화됨(sum_loop X_STORE의 PWDATA=00000000이 그 증거)",
+            "uvm_rv32i_iss.svh는 비정렬 SH 무시, LH 0 반환, 128워드 등 RTL 동작에 맞춘 모델이라 RTL과 같은 오류(common-mode)를 놓칠 수 있음. 변이 테스트도 SLTU 1종뿐임"
+          ],
+          "rationale": "ISS lock-step, 최종 상태 비교, 변이 테스트로 자동 판정의 신뢰성을 실제로 입증해 큰 개선을 이뤘다. 그러나 원본 판정은 정성적이었고, 332,527 FAIL 해결은 임의 지연 기반이며, 2-state 실행과 RTL 맞춤형 참조 모델 때문에 판정 독립성에 한계가 있다.",
+          "score_breakdown": [
+            {
+              "item": "원본 SW 검증 파형 판정에 정량 기준 없음 (final_report 07, tb_rv32i.sv)",
+              "points": -6
+            },
+            {
+              "item": "FAIL 332,527 해결이 1ns 지연 기반, 근본 원인·재발 방지 근거 부족 (final_report 08. Troubleshooting)",
+              "points": -4
+            },
+            {
+              "item": "Verilator 2-state로 X 초기화/미정의 값 검사 무력화 (uvm_rv_types.svh poison_state, uvm_log_rv_regression_test.log X_STORE)",
+              "points": -4
+            },
+            {
+              "item": "ISS가 RTL 동작에 맞춰져 common-mode 결함 은폐 가능, 변이 1종뿐 (uvm_rv32i_iss.svh, uvm_log_mutant_sltu_regression.log)",
+              "points": -4
+            },
+            {
+              "item": "사이클 수 비교 미판정 (uvm_rv_scoreboard.svh n_lat_mismatch)",
+              "points": -2
+            },
+            {
+              "item": "보고서 판정 근거 표기 오류 다수 (final_report 04 S-type 표, 04 L-type, 06 BRAM Write/Read 슬라이드)",
+              "points": -5
+            }
+          ]
+        },
+        {
+          "id": 4,
+          "name": "엣지 케이스 대응 시나리오",
+          "score": 76,
+          "evidence": [
+            "uvm_prog_alu_edge.S/.exp: INT_MAX+1, INT_MIN-1 wrap, SLT/SLTU 부호 경계, SRA/SRAI 부호 유지, 시프트 양 33(하위 5비트), 즉시값 -2048/2047 부호 확장, x0 쓰기 3종 무시 등 25개 기대값",
+            "uvm_prog_branch_jump.S: 분기 6종 taken/not-taken, signed/unsigned 경계(MIN/MAX, -1/1), backward 루프, JALR 홀수 타깃 LSB 클리어, rd==rs1, AUIPC/LUI",
+            "uvm_prog_mem_access.S: SB 4레인, SH 상·하위, LB/LBU/LH/LHU 부호/제로 확장, 음수 오프셋, store 직후 load, 상위 비트 무시 18개 기대값",
+            "uvm_prog_unmapped_access.S + uvm_log_rv_unmapped_test.log: 미할당 주소 store에서 BUS_HANG/KNOWN_BUG를 재현해 RTL 결함을 식별"
+          ],
+          "weaknesses": [
+            "control_unit.sv EXECUTE의 case(opcode)에 default가 없어 미정의 opcode에서 n_state=c_state로 영구 정지함. monitor에 FSM_STUCK 검출기는 있으나 이를 실행하는 시나리오가 없음",
+            "비정렬 접근: apb_bram.sv는 SH의 PADDR[1:0]=1/3에서 쓰기를 생략하고 LH/LHU는 0을 반환하는 등 조용히 무시함. 커버리지는 ignore_bins로 제외하고 ISS도 RTL에 맞춰 시나리오/판단이 없음",
+            "메모리맵 64KB 대비 apb_bram dmem은 128워드라 0x1000_0200 이상 RAM 주소 접근이 정의되지 않음(인덱스 범위 밖). 이를 다루는 시나리오가 없음(uvm_rv32i_iss.svh 경고만 존재)",
+            "리셋 직후/동작 중 리셋(APB 전송 중 리셋) 시나리오가 없음. reg_file·BRAM에 리셋이 없는데 2-state 실행으로 미초기화 상태 검증이 약함"
+          ],
+          "rationale": "체크리스트상 엣지 케이스(x0, 부호 확장, 시프트 5비트, SLT/SLTU, JALR LSB, 서브워드, 오버플로)를 구체적 기대값으로 대부분 다뤘고, 실제 RTL 결함 1건을 재현했다. 그러나 디코더 default 부재, 비정렬 접근, BRAM 범위 밖 주소, 리셋 관련 코너가 미검증 결함·누락으로 남아 있다.",
+          "score_breakdown": [
+            {
+              "item": "미정의 opcode 시 EXECUTE 영구 정지 결함 미검증 (control_unit.sv case(opcode) default 부재)",
+              "points": -6
+            },
+            {
+              "item": "비정렬 SH/LH/LW 무동작·0 반환을 시나리오 없이 커버리지에서 제외 (apb_bram.sv, uvm_rv_coverage.svh ignore_bins)",
+              "points": -5
+            },
+            {
+              "item": "512B 초과 RAM 주소 접근 미검증, 메모리맵 불일치 (apb_bram.sv dmem[0:127], final_report 03)",
+              "points": -4
+            },
+            {
+              "item": "리셋 직후/동작 중 리셋 시나리오 부재 (datapath.sv reg_file 리셋 없음, uvm_rv_agent.svh)",
+              "points": -4
+            },
+            {
+              "item": "ALU 경계·시프트 코너 미달 및 결함 수정 후 재검증 없음 (uvm_log_rv_regression_test.log, uvm_README.md)",
+              "points": -5
+            }
+          ]
+        },
+        {
+          "id": 5,
+          "name": "버스 프로토콜·통합 안정성",
+          "score": 71,
+          "evidence": [
+            "final_report_team1.txt 06. 시뮬레이션 #1~#5: IDLE→SETUP→ACCESS 순서, PSEL0 디코드, PADDR/PWDATA HOLD, BRAM Write/Read를 파형으로 확인",
+            "apb_requester.sv: IDLE에서 temp_PADDR/PWDATA/PWRITE를 래치해 SETUP~ACCESS 동안 hold, ACCESS에서 ready까지 대기",
+            "uvm_rv_scoreboard.svh: 명령어마다 APB 완료 시점의 PADDR, PWDATA(mask), itype을 ISS 기대값과 비교. uvm_rv_agent.svh monitor의 BUS_HANG 검출(MEM 64사이클)",
+            "uvm_log_rv_unmapped_test.log: 0x3000_0000 store에서 'MEM 상태에서 64 사이클 동안 ready 없음 → 버스 hang' 재현(address_decoder default 부재)"
+          ],
+          "weaknesses": [
+            "apb_bram.sv PREADY = PSEL & PENABLE라 wait state가 한 번도 발생하지 않음. CPU MEM 상태의 ready 대기 경로와 ACCESS 연장 동작은 검증되지 않음(지연 슬레이브/BFM 없음)",
+            "APB 프로토콜 자동 체커(SVA)가 없음: SETUP→ACCESS 순서, PADDR/PWDATA hold, PSEL one-hot, PENABLE 단독 assert 금지 등은 보고서 파형 육안 확인뿐이고, UVM은 완료 시점 값만 비교함",
+            "rv32i_top.sv에서 PREADY1~6/PRDATA1~6을 구동하는 곳이 없어 0x2000_0xxx 주변장치 영역 접근 시 ready가 X/0이 되어 hang 가능. GPI/GPO RTL은 제출되지 않아 보고서 GPI/GPO 시뮬레이션을 검증할 수 없음",
+            "미할당 주소 hang 결함(PSLVERR/에러 응답 없음)이 남아 있어 통합 안정성이 확보되지 않음"
+          ],
+          "rationale": "기본 APB 순서·hold·디코드는 파형으로, 주소/데이터는 scoreboard로 확인했고 미할당 주소 hang을 재현한 점은 인정한다. 그러나 wait state 경로가 실제로 한 번도 실행되지 않았고, 프로토콜 자동 체커가 없으며, 주변장치 슬레이브 부재와 hang 결함이 남아 통합 안정성 검증은 부분 충족에 머문다.",
+          "score_breakdown": [
+            {
+              "item": "PREADY wait state 미발생·CPU ready 대기 경로 미검증 (apb_bram.sv PREADY = PSEL & PENABLE)",
+              "points": -8
+            },
+            {
+              "item": "APB 프로토콜 assertion/자동 체커 부재, 파형 육안 확인 (final_report 06, uvm_rv_agent.svh)",
+              "points": -6
+            },
+            {
+              "item": "주변장치 PREADY1~6 미구동·GPI/GPO RTL 미제출로 주변장치 영역 통합 미검증 (rv32i_top.sv)",
+              "points": -5
+            },
+            {
+              "item": "미할당 주소 hang 결함 미해결, 에러 응답 경로 없음 (apb_requester.sv address_decoder, uvm_log_rv_unmapped_test.log)",
+              "points": -4
+            },
+            {
+              "item": "PRDATA 'z로 툴 의존성 발생, back-to-back·전송 중 리셋 미검증 (apb_bram.sv, uvm_apb_bram_verilator.sv)",
+              "points": -6
+            }
+          ]
+        }
+      ],
+      "summary": "ISS 기반 SW 자동판정은 우수하나 버스 wait·예외 경로 검증 미흡",
+      "improvements": [
+        "PREADY를 무작위로 지연시키는 APB 슬레이브(또는 BRAM 파라미터)와 SVA 프로토콜 체커(SETUP→ACCESS, hold, PSEL one-hot)를 추가해 CPU MEM 대기 경로를 회귀에 포함",
+        "미정의 opcode, 비정렬 접근, 512B 초과 RAM, 주변장치/미할당 주소, 전송 중 리셋 음성 시나리오를 추가하고 decoder default·에러 슬레이브 수정 후 PASS 전환을 재검증",
+        "원본 RTL을 4-state 시뮬레이터(VCS 등)로 실행하고, C 소스를 riscv gcc로 컴파일하는 흐름과 ALU 경계·시프트 커버리지 100% 마감을 근거로 남길 것"
+      ]
+    },
+    {
+      "id": 3,
+      "label": "3차 (독립)",
+      "focus": "이전·다른 세션의 결과는 알 수 없고 참고하지 않는다. 5개 기준 전체를 동일한 기준과 동일한 자료로 처음부터 독립적으로 채점하라.",
+      "score": 73,
+      "pretrain_summary": "## 사전학습 정리\n\n**1. 프로젝트 개요**\n- RV32I 명령어 37종을 실행하는 5상태(FETCH/DECODE/EXECUTE/MEM/WB) multi-cycle CPU를 APB 버스로 BRAM(128워드)과 주변장치에 연결한 SoC 팀 프로젝트(1조, 4인).\n- 검증은 명령어 타입별 directed 파형, R/I 19개 대상 CPU UVM(PASS 541,489, coverage 100%), APB 파형, C 프로그램(1~10 누적합) SW 검증으로 했다.\n- 보고서 제출 뒤 평가 대상자의 SW 검증을 자동 판정으로 바꾸는 UVM 환경(rv32i_uvm_sw, AI 도움, Verilator 실행)이 추가되었다.\n\n**2. 핵심 아키텍처/구성 요소**\n- control_unit: opcode별 제어 FSM. S/L만 MEM 상태에서 transfer=1로 ready를 기다리고, EXECUTE의 opcode case에는 default가 없다.\n- datapath: reg_file(x0은 0, 리셋 없음), DEC/EXE/MEM 단계 레지스터, ALU, imm_extend, PC 로직(JALR LSB 클리어), WB MUX.\n- apb_requester(IDLE/SETUP/ACCESS, IDLE에서 래치·hold) + address_decoder(default 없음) + apb_mux(기본 PREADY0).\n- apb_bram: 128워드(512B, 메모리맵 64KB와 다름), SB/SH/LB/LH/LBU/LHU 처리, PREADY=PSEL&PENABLE(wait 없음), 비선택 시 PRDATA='z.\n- 추가 UVM: ROM 백도어 driver, DECODE 경계 commit monitor(clocking #1step), SV ISS lock-step scoreboard, .exp 기대값, 커버리지 6그룹, 시나리오 7개.\n\n**3. 평가 대상자 R&R과 책임 범위**\n- 정명훈: CPU SW 검증. C 코드 → 기계어 → ROM → CPU/APB/BRAM 경로로 시스템 레벨 동작을 검증한다.\n- 맡은 일: 시나리오 설계, 기대값 정의, PASS 판정, SW 경로에서 CPU/버스 결함 식별(원본 tb_rv32i.sv는 파형을 눈으로 보고 판정).\n\n**4. 검증 관점에서 중점적으로 볼 사항**\n- 원본(보고서 시점) SW 검증의 판정 방식(육안 파형)과 보완 UVM 환경이 로그·코드로 입증한 범위를 나눠서 본다.\n- 커버리지 달성률과 남은 구멍(ALU 경계 83.93%, 시프트 84.72%, L/S 오프셋 95%), cross 설계가 타당한지.\n- ISS 참조 모델이 RTL에서 독립적인지(512B·비정렬 동작을 RTL에 맞춘 점), scoreboard 동기화, 트러블슈팅 원인 분석.\n- 엣지 케이스: 비정렬 접근, 미정의 opcode에서 FSM 정지, BRAM 범위 밖 주소, 동작 중 리셋 등 아직 검증하지 않은 RTL 결함.\n- APB: wait state, back-to-back, 미할당 주소 hang(재현만 하고 수정 안 함), 주변장치 PREADY1~6 미구동, PRDATA 'z가 툴마다 다르게 동작하는 문제.\n",
+      "criteria": [
+        {
+          "id": 1,
+          "name": "명령어·기능 커버리지 확보",
+          "score": 71,
+          "evidence": [
+            "uvm_log_rv_regression_test.log: 명령어 37종 100%, 분기×taken/not-taken 100%, Load/Store×오프셋 95.00%, ALU 피연산자 경계값 83.93%, 시프트 양 84.72%, 기타 코너 100%",
+            "uvm_rv_coverage.svh: cg_instr(37종), cg_branch(6종×taken cross), cg_mem(종류×바이트 오프셋 cross, 비정렬 ignore_bins), cg_shift(0/1~30/31 + 레지스터 시프트 상위 비트), cg_misc(x0 쓰기, JALR 홀수, 사이클 수)",
+            "SW 시나리오 6개(uvm_prog_*.S)가 CPU UVM 범위 밖(S/L/B/U/J, AUIPC/LUI/JALR)을 보완함. 보고서 05 슬라이드의 CPU UVM은 R/I 19개만 대상",
+            "보고서 07 슬라이드/rom_code_ex1_disasm.txt: 원본 SW 검증 프로그램이 쓰는 명령어는 LUI, ADDI, SW, LW, JAL, JALR, BGE, ADD 8종뿐"
+          ],
+          "weaknesses": [
+            "ALU 경계값 83.93%, 시프트 84.72%, L/S 오프셋 95%의 구멍을 찾아 메우지 않았음(uvm_README.md: '새 .S를 추가하면 됨'으로만 남김)",
+            "uvm_rv_coverage.svh cg_alu: 8개 연산(ADD/SUB/SLT/SLTU/SRA/ADDI/SLTI/SLTIU)만 대상이고, cp_rs2는 정의만 했을 뿐 cross가 없어 rs1×rs2 부호 조합이 측정되지 않음",
+            "피연산자 공간이 손으로 쓴 directed 프로그램 6개(명령어 1,211개 실행)에 한정됨. 랜덤 명령어 스트림이나 constrained random 프로그램 생성이 없음",
+            "보고서 시점 평가 대상자 산출물(tb_rv32i.sv + rom_code_ex1)에는 커버리지 측정이 없고 명령어 8종만 실행"
+          ],
+          "rationale": "보완 UVM 환경으로 37종 명령어와 분기 방향을 100% 덮었고 S/L/B/U/J 공백도 메웠지만, ALU·시프트 경계 커버리지가 85% 안팎에 머물고 cross 설계가 좁습니다. 원본 SW 검증에는 커버리지 개념 자체가 없었습니다.",
+          "score_breakdown": [
+            {
+              "item": "ALU 경계 83.93%/시프트 84.72%/L/S 오프셋 95% 미달성 구멍 방치 (uvm_log_rv_regression_test.log, uvm_README.md)",
+              "points": -7
+            },
+            {
+              "item": "cg_alu가 8개 연산만 대상이고 rs2 cross가 없어 피연산자 조합 설계가 부족함 (uvm_rv_coverage.svh)",
+              "points": -6
+            },
+            {
+              "item": "directed 프로그램 6개, 1,211개 명령어에 한정되고 랜덤 프로그램 생성이 없음 (uvm_README.md, 회귀 로그)",
+              "points": -5
+            },
+            {
+              "item": "보고서 시점 SW 검증에 커버리지 측정이 없고 명령어 8종만 실행 (tb_rv32i.sv, rom_code_ex1_disasm.txt, 보고서 07)",
+              "points": -6
+            },
+            {
+              "item": "FENCE/ECALL/EBREAK·미정의 opcode가 커버리지 대상에서 빠짐 (uvm_rv_coverage.svh)",
+              "points": -2
+            },
+            {
+              "item": "Verilator 개발판 단독 집계로 VCS/URG 교차 확인 없음 (uvm_README.md)",
+              "points": -3
+            }
+          ]
+        },
+        {
+          "id": 2,
+          "name": "SW 시나리오 기반 시스템 검증",
+          "score": 75,
+          "evidence": [
+            "보고서 07 슬라이드: rom_code_ex1의 Jump/BGE/a++/Result(dmem[122]=55)/Loop(PC=0x4C)를 파형으로 확인",
+            "rom_code_ex1_disasm.txt: 스택 프레임 생성, add 함수 호출(jal ra)/복귀(jalr), bge 루프, while(1) 정지가 포함된 실제 프로그램이며 기대값 dmem[122]=55, dmem[123]=10을 미리 정의함",
+            "uvm_prog_sum_loop.exp 및 회귀 로그: sum_loop PASS, 명령어 252개 lock-step 비교, 기대값 2/2",
+            "uvm_prog_fib_recursion.S(재귀 fib(7), 호출 41회, sp 복원), uvm_prog_bubble_sort.S(중첩 루프, 메모리 swap, signed 정렬, 오버플로 합)가 PASS하고 기대값 68/68 일치 (uvm_log_rv_regression_test.log)"
+          ],
+          "weaknesses": [
+            "C → 컴파일 → 기계어 체인이 입증되지 않음: rom_code_ex1의 원본 C 파일은 미제출(복원 코드뿐)이고, 추가 시나리오는 미제출 rvasm.py로 어셈블한 수작성 .S임. gcc 흐름은 README에 설명만 있음",
+            "보고서 시점 tb_rv32i.sv는 15,000ns 실행 후 파형을 육안으로 보기만 하고 기대값을 자동 대조하지 않음. 자동 판정 환경은 보고서 이후 AI 도움으로 보완된 것",
+            "SW 시나리오가 BRAM(512B)에만 한정됨. 보고서에 있는 GPI/GPO 경로는 rv32i_top에 연결되지 않아 SW로 검증되지 않음",
+            "sum_loop의 X_STORE 경고 2건(main이 초기화되지 않은 ra/s0 저장)을 '영향 없음'으로 넘기고 기대값은 2개뿐"
+          ],
+          "rationale": "함수 호출·재귀·스택·루프 종료를 포함한 프로그램을 ROM→CPU→APB→BRAM 전 경로로 실행하고, 미리 정의한 기대값과 자동으로 대조했다는 점이 로그로 입증됩니다. 다만 C 컴파일 체인과 주변장치 경로는 입증되지 않았고, 보고서 시점 검증은 육안 판정이었습니다.",
+          "score_breakdown": [
+            {
+              "item": "C 원본·컴파일 체인 미입증, 추가 시나리오는 수작성 어셈블리 (rom_code_ex1_disasm.txt, uvm_README.md)",
+              "points": -8
+            },
+            {
+              "item": "보고서 시점 SW 검증은 기대값 자동 대조 없는 육안 파형 판정이고 자동화는 사후·AI 보완 (tb_rv32i.sv, 보고서 07)",
+              "points": -8
+            },
+            {
+              "item": "GPI/GPO 등 주변장치 경로를 SW 시나리오로 검증하지 않음 (rv32i_top.sv에 BRAM만 연결)",
+              "points": -4
+            },
+            {
+              "item": "sum_loop X_STORE 경고 방치, 기대값 2개뿐 (uvm_log_rv_regression_test.log, uvm_prog_sum_loop.exp)",
+              "points": -2
+            },
+            {
+              "item": "수정한 BRAM으로 Verilator에서만 실행, 원본 RTL로는 미실행 (uvm_apb_bram_verilator.sv)",
+              "points": -3
+            }
+          ]
+        },
+        {
+          "id": 3,
+          "name": "PASS/FAIL 판정 정확성",
+          "score": 73,
+          "evidence": [
+            "uvm_rv32i_iss.svh + uvm_rv_scoreboard.svh: 명령어마다 PC, rd 대상·값, store PADDR/PWDATA/크기, load 주소를 lock-step으로 비교하고, PC가 어긋나면 이후 비교를 중단",
+            "uvm_rv_probe_if.sv: clocking mon_cb에서 default input #1step으로 posedge 직전 값을 샘플해 race를 피하는 구조",
+            "uvm_log_mutant_sltu_regression.log: SLTU를 signed 비교로 바꾼 변이 RTL에서 RD_VALUE/ST_DATA/FINAL_REG/FINAL_MEM/EXPECT 오류 19건 검출",
+            "uvm_log_rv_unmapped_test.log: BUS_HANG/KNOWN_BUG로 hang 결함을 자동 검출"
+          ],
+          "weaknesses": [
+            "ISS 메모리 모델을 RTL에 맞춤(512B 한정, 비정렬 SH는 쓰기 없음, LH는 0 반환, SW/LW는 하위 비트 무시: uvm_rv32i_iss.svh 주석). 참조 모델이 사양과 독립적이지 않아 RTL 동작이 경고만 내고 기대값으로 통과함",
+            "uvm_rv_scoreboard.svh: ISS에서 값을 모르는 경우 DUT 값으로 iss.x를 동기화하고(iss.x[e.rd]=t.rd_val), X-store는 경고로만 처리해 결함을 가릴 수 있음",
+            "n_lat_mismatch(사이클 수 불일치)를 세기만 하고 출력하거나 판정하지 않음",
+            "보고서 08: 원인을 '상승 에지 1step에서 인식'으로만 기술했고 해결책도 'clocking 없이 1ns 뒤'라는 임시 지연이며, 05 슬라이드의 '#1step' 기술과도 맞지 않음. PASS 총수가 예상 총수와 일치하는지만 보는 판정"
+          ],
+          "rationale": "ISS lock-step 비교, clocking #1step 샘플링, 변이 검출로 자동 판정 체계의 신뢰성은 어느 정도 입증됐습니다. 그러나 참조 모델을 RTL 동작에 맞췄고, 원본 판정은 정량 기준이 없는 육안 판정이었으며, 트러블슈팅 원인 분석이 얕습니다.",
+          "score_breakdown": [
+            {
+              "item": "ISS를 RTL 동작(512B, 비정렬)에 맞춰 참조 모델의 독립성 훼손 (uvm_rv32i_iss.svh)",
+              "points": -6
+            },
+            {
+              "item": "미정의 값에서 DUT 값으로 ISS 동기화, X-store는 경고만 함 (uvm_rv_scoreboard.svh)",
+              "points": -3
+            },
+            {
+              "item": "사이클 수 불일치를 세기만 하고 판정·보고하지 않음 (uvm_rv_scoreboard.svh n_lat_mismatch)",
+              "points": -2
+            },
+            {
+              "item": "트러블슈팅 원인 분석이 얕고 해결책은 임시 지연, 05와 08 슬라이드 기술이 서로 다름 (보고서 05, 08)",
+              "points": -4
+            },
+            {
+              "item": "원본 SW 검증 판정이 정량 기준 없는 육안 파형 (tb_rv32i.sv, 보고서 07)",
+              "points": -8
+            },
+            {
+              "item": "변이 1건뿐, Python ISS 미제출, 음성 테스트를 기대 FAIL로 자동 처리하지 않음 (uvm_README.md, 로그)",
+              "points": -4
+            }
+          ]
+        },
+        {
+          "id": 4,
+          "name": "엣지 케이스 대응 시나리오",
+          "score": 76,
+          "evidence": [
+            "uvm_prog_alu_edge.S: INT_MAX+1/INT_MIN-1 wrap, SLT/SLTU 부호 경계, SRA/SRAI 부호 유지, 시프트 양 33 → 하위 5비트, 즉시값 -2048/2047 부호 확장, SLTIU -1, x0 쓰기 3종 무시 (25/25 일치)",
+            "uvm_prog_mem_access.S: SB 4레인, SH 상/하위, LB/LBU/LH/LHU 부호/제로 확장, 음수 오프셋, store 직후 load (18/18 일치)",
+            "uvm_prog_branch_jump.S: 분기 6종 taken/not-taken(signed/unsigned 경계), backward 루프, JALR 홀수 타깃 LSB 클리어, JALR rd==rs1, AUIPC/LUI (6/6 일치)",
+            "uvm_rv_agent.svh driver poison_state: 레지스터와 BRAM을 X로 초기화해 리셋 직후 미초기화 상태를 모사하고 X_STORE로 검출"
+          ],
+          "weaknesses": [
+            "비정렬 Load/Store 미검증: apb_bram.sv는 SH가 PADDR[1:0]=01/11일 때 아무것도 쓰지 않고 LH/LHU는 0을 반환하며, SW/LW는 하위 비트를 무시하는데 시나리오가 없음(커버리지도 ignore_bins로 제외)",
+            "control_unit.sv EXECUTE의 opcode case에 default가 없어, 미정의 opcode나 FENCE/ECALL에서 n_state가 EXECUTE에 머물러 FSM이 영구 정지함. 모니터에 FSM_STUCK 검출기는 있지만 시나리오가 없음",
+            "apb_bram.sv dmem[0:127](512B)과 메모리맵 RAM 64KB(보고서 03)가 다른데, 0x1000_0200 이상 접근 시나리오가 없음(ISS는 경고만 냄)",
+            "동작 중 리셋(MEM/APB ACCESS 도중 rst_n)을 검증하지 않았고 reg_file에 리셋이 없음"
+          ],
+          "rationale": "RV32I 대표 코너 케이스(오버플로, 부호 경계, 시프트 5비트, x0, JALR LSB, 서브워드 확장)를 기대값이 있는 시나리오로 체계적으로 다뤘습니다. 다만 비정렬 접근, 미정의 opcode에서의 정지, BRAM 범위 밖 주소 같은 RTL 결함이 검증되지 않은 채 남아 있습니다.",
+          "score_breakdown": [
+            {
+              "item": "비정렬 SH/LH/SW/LW 동작 미검증, 커버리지에서 제외 (apb_bram.sv, uvm_rv_coverage.svh)",
+              "points": -6
+            },
+            {
+              "item": "미정의 opcode에서 control_unit EXECUTE 정지 결함 미검증 (control_unit.sv opcode case default 부재)",
+              "points": -5
+            },
+            {
+              "item": "BRAM 512B와 메모리맵 64KB 불일치, 범위 밖 주소 시나리오 없음 (apb_bram.sv, 보고서 03)",
+              "points": -5
+            },
+            {
+              "item": "동작 중 리셋 시나리오 없음, reg_file 리셋 부재 (datapath.sv reg_file)",
+              "points": -3
+            },
+            {
+              "item": "address_decoder default 부재를 재현만 하고 수정·재검증하지 않음 (uvm_log_rv_unmapped_test.log)",
+              "points": -3
+            },
+            {
+              "item": "JAL 음수/대형 오프셋 미검증 (uvm_prog_branch_jump.S)",
+              "points": -2
+            }
+          ]
+        },
+        {
+          "id": 5,
+          "name": "버스 프로토콜·통합 안정성",
+          "score": 69,
+          "evidence": [
+            "보고서 06 슬라이드: STATE 순서(IDLE→SETUP→ACCESS), Address Decode(PSEL0), Address/Data HOLD, BRAM R/W를 파형으로 확인(김태수 담당)",
+            "uvm_rv_scoreboard.svh: SW 실행 중 store마다 PADDR/PWDATA/itype을, load마다 PADDR를 ISS와 비교해 CPU MEM↔APB 핸드셰이크가 정상 동작함을 1,211개 명령어로 간접 확인",
+            "uvm_log_rv_unmapped_test.log: 0x3000_0000 store 시 address_decoder default 부재로 apb_mux가 ready=PREADY0=0을 내고 BUS_HANG이 발생함을 재현",
+            "uvm_rv_types.svh rv_expected_cycles: Store 6, Load 7사이클(APB 3-phase) 모델"
+          ],
+          "weaknesses": [
+            "wait state 미검증: apb_bram.sv PREADY=PSEL&PENABLE로 항상 0-wait이고, PREADY를 지연시키는 슬레이브/BFM이 없어 control_unit MEM 상태의 ready 대기 경로를 정상 시나리오로 검증하지 않음",
+            "back-to-back 전송 미검증(CPU FSM이 매번 FETCH로 돌아가 IDLE이 끼어듦). UVM 환경에 APB 프로토콜 SVA(SETUP→ACCESS 순서, hold, PSEL one-hot)가 없고, 모니터는 PSEL0 완료만 관측",
+            "미할당 주소 hang을 재현만 하고 수정하지 않음(PSLVERR/에러 슬레이브 없음). rv32i_top.sv에서 PREADY1~6/PRDATA1~6이 미구동이라 0x2000_xxxx 주변장치 주소에 접근하면 hang 또는 X가 됨. 보고서의 GPI/GPO는 제출 RTL에 통합되지 않음",
+            "apb_bram.sv의 비선택 시 PRDATA='z 때문에 Verilator에서는 수정본이 필요했음. 툴마다 동작이 다른 통합 결함이 원본 RTL에 남아 있음"
+          ],
+          "rationale": "정상 경로의 CPU-APB-BRAM 통합은 lock-step 비교로 충분히 입증됐고 미할당 주소 hang도 재현했습니다. 그러나 wait state, back-to-back, 프로토콜 assertion, 주변장치 슬레이브 통합이 검증되지 않았고 hang·'z 결함이 RTL에 그대로 남아 있습니다.",
+          "score_breakdown": [
+            {
+              "item": "PREADY wait state 미검증, 0-wait BRAM만 사용 (apb_bram.sv, control_unit.sv MEM)",
+              "points": -8
+            },
+            {
+              "item": "back-to-back 미검증, APB 프로토콜 SVA 없음, PSEL0만 관측 (uvm_rv_agent.svh, uvm_rv_probe_if.sv)",
+              "points": -8
+            },
+            {
+              "item": "미할당 주소 hang 미수정, PREADY1~6 미구동, GPI/GPO 미통합 (apb_requester.sv address_decoder, rv32i_top.sv)",
+              "points": -8
+            },
+            {
+              "item": "PRDATA='z로 툴마다 동작이 다른 통합 결함, Verilator 수정본 필요 (apb_bram.sv, uvm_apb_bram_verilator.sv)",
+              "points": -4
+            },
+            {
+              "item": "APB 프로토콜 검증은 다른 팀원 몫이고 평가 대상자 범위는 BRAM 단일 경로 (보고서 06, R&R)",
+              "points": -3
+            }
+          ]
+        }
+      ],
+      "summary": "ISS 자동판정 보완은 우수하나 버스 예외·대기·비정렬 검증 미흡",
+      "improvements": [
+        "address_decoder에 default 에러 슬레이브(PREADY=1, PSLVERR)를 추가하고, control_unit EXECUTE에 미정의 opcode default를 넣은 뒤 unmapped/illegal 시나리오를 PASS 기준으로 재검증",
+        "PREADY를 랜덤 지연시키는 APB 슬레이브 BFM과 SETUP→ACCESS 순서·hold·PSEL one-hot SVA를 추가하고, GPI/GPO를 rv32i_top에 통합해 주변장치 SW 시나리오를 작성",
+        "ISS를 사양 기준(64KB 맵, 비정렬 정책 명시)으로 분리하고 비정렬·범위 밖·동작 중 리셋 시나리오와 랜덤 명령어 스트림을 추가해 ALU/시프트 경계 커버리지를 100%로 끌어올린 뒤 원본 RTL로 VCS에서 교차 실행"
+      ]
+    }
+  ],
+  "history": [
+    {
+      "date": "10/20",
+      "label": "최초 평가 (보고서·RTL·tb 기준, 세션별 관점 분리)",
+      "score": 56
+    },
+    {
+      "date": "10/21",
+      "label": "UVM SW 자동 판정 환경 보완 후 재평가",
+      "score": 72
+    },
+    {
+      "date": "11/09",
+      "label": "동일 조건 독립 3회 · 감점식 산정 재평가",
+      "score": 76
+    }
+  ],
+  "reflection": {
+    "reflection": [
+      "원본 SW 검증은 파형을 눈으로 보고 판정해 회귀 테스트로 쓸 수 없었고, 자동 판정은 보고서 이후에야 보완했다.",
+      "버스·통합(기준 5)이 가장 낮다. 0-wait BRAM만 연결돼 PREADY 대기, back-to-back, 주변장치 경로를 시험할 수 없었다.",
+      "참조 모델(ISS)을 RTL 동작에 맞춰 작성해, RTL과 모델이 같은 잘못을 하면 검출하지 못하는 구조다.",
+      "Verilator(2-state)로만 실행해 X 전파와 미초기화 문제를 확인하지 못했다.",
+      "찾아낸 결함(디코더 default 부재, 미정의 opcode 정지)을 재현만 하고 수정·재검증하지 않았다."
+    ],
+    "plan": [
+      "address_decoder에 에러 응답(PREADY=1, PSLVERR=1), control_unit에 미정의 opcode 처리를 추가하고 rv_unmapped_test를 PASS로 전환",
+      "PREADY를 무작위로 지연시키는 APB 슬레이브와 SVA(SETUP→ACCESS, hold, PSEL one-hot)로 wait state·back-to-back 검증",
+      "VCS 4-state로 원본 RTL 회귀를 재실행하고, ISS를 사양 기준으로 분리하며 변이 테스트를 여러 결함 유형으로 확대",
+      "랜덤 명령어 스트림과 경계·비정렬·범위 밖 시나리오로 ALU/시프트 커버리지 100% 마감, C→gcc 흐름 자동화"
+    ]
+  }
+}

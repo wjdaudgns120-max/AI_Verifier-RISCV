@@ -1,0 +1,201 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AI Auto-Verifier Dashboard</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css">
+<style>
+  :root{
+    --bg:#eef1f5; --panel:#ffffff; --line:#e3e8ef; --ink:#0f172a; --ink2:#475569; --ink3:#94a3b8;
+    --side:#111827; --track:#e6ebf1; --chip:#f1f5f9;
+    --accent:#2563eb; --accent-soft:#e8f0fe;
+  }
+  body[data-p="ondevice"]{ --accent:#0f766e; --accent-soft:#e0f4f1; }
+  *{box-sizing:border-box}
+  html,body{margin:0}
+  body{background:var(--bg); color:var(--ink);
+       font-family:Pretendard,"Pretendard Variable","Malgun Gothic","Apple SD Gothic Neo",system-ui,sans-serif;
+       -webkit-font-smoothing:antialiased; padding:28px}
+  .window{max-width:1280px; margin:0 auto; background:var(--panel); border:1px solid var(--line);
+          border-radius:14px; overflow:hidden; box-shadow:0 10px 30px rgba(15,23,42,.08)}
+  .bar{height:40px; background:#e2e8f0; display:flex; align-items:center; padding:0 14px; gap:7px; position:relative}
+  .dot{width:12px;height:12px;border-radius:50%}
+  .url{position:absolute; left:50%; transform:translateX(-50%); font:13px ui-monospace,Consolas,monospace; color:#64748b}
+  .shell{display:flex; min-height:660px}
+  nav{width:76px; background:var(--side); display:flex; flex-direction:column; align-items:center; padding:20px 0; gap:10px}
+  nav button{width:48px;height:48px;border-radius:12px;border:0;background:transparent;color:#64748b;cursor:pointer;
+             display:grid;place-items:center;font:700 11px/1.1 inherit;letter-spacing:.02em}
+  nav button svg{width:24px;height:24px}
+  nav button.on{background:rgba(255,255,255,.1); color:#fff}
+  nav button:hover{color:#cbd5e1}
+  nav .sp{flex:1}
+  main{flex:1; padding:30px 34px 34px; background:#f8fafc; min-width:0}
+  h1{margin:0 0 4px; font-size:26px; font-weight:800; letter-spacing:-.01em}
+  .sub{color:var(--ink2); font-size:14px; margin-bottom:22px}
+  .sub b{color:var(--accent); font-weight:700}
+  .grid3{display:grid; grid-template-columns:1.15fr 1fr 1.25fr; gap:18px}
+  .card{background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:22px 24px}
+  .lbl{font-size:12px; font-weight:700; letter-spacing:.06em; color:#64748b; text-transform:uppercase; margin-bottom:12px}
+  .role-t{font-size:22px; font-weight:800; margin:0 0 8px}
+  .role-d{color:var(--ink2); font-size:14px; line-height:1.55}
+  .who{display:inline-block; margin-top:12px; font-size:12px; font-weight:600; color:var(--accent);
+       background:var(--accent-soft); padding:4px 10px; border-radius:999px}
+  .score{display:flex; align-items:center; gap:22px; height:100%}
+  .ring{position:relative; width:118px; height:118px; flex:none}
+  .ring svg{transform:rotate(-90deg)}
+  .ring .n{position:absolute; inset:0; display:grid; place-items:center; font-size:38px; font-weight:800; color:var(--accent)}
+  .score .t1{font-size:12px; font-weight:700; color:#64748b; letter-spacing:.06em}
+  .score .t2{font-size:19px; font-weight:800; margin:2px 0 6px}
+  .score .t3{font-size:13px; color:var(--ink3)}
+  .sess{display:grid; grid-template-columns:repeat(3,1fr); gap:10px}
+  .s{background:var(--chip); border:1px solid transparent; border-radius:12px; padding:12px 8px; text-align:center; cursor:pointer}
+  .s .a{font-size:12px; color:var(--ink2)}
+  .s .b{font-size:24px; font-weight:800; margin-top:4px}
+  .s.on{background:var(--accent-soft); border-color:var(--accent)}
+  .s.on .b{color:var(--accent)}
+  .hint{font-size:12px; color:var(--ink3); margin-top:10px}
+  .crit{margin-top:18px}
+  .cgrid{display:grid; grid-template-columns:1fr 1fr; gap:22px 40px}
+  .ci .row{display:flex; justify-content:space-between; align-items:baseline; font-size:15px; margin-bottom:8px}
+  .ci .row b{color:var(--accent); font-size:15px}
+  .trk{height:10px; background:var(--track); border-radius:99px; overflow:hidden}
+  .fill{height:100%; background:var(--accent); border-radius:99px; transition:width .5s ease}
+  .detail{margin-top:18px}
+  .dh{display:flex; justify-content:space-between; align-items:center; margin-bottom:6px}
+  .sumline{font-size:15px; font-weight:600; margin:4px 0 16px}
+  details{border-top:1px solid var(--line); padding:12px 0}
+  summary{cursor:pointer; font-weight:700; font-size:14px; list-style:none; display:flex; justify-content:space-between}
+  summary::-webkit-details-marker{display:none}
+  summary span{color:var(--accent)}
+  .cols{display:grid; grid-template-columns:1fr 1fr; gap:18px; margin-top:10px; font-size:13px; color:var(--ink2); line-height:1.55}
+  .cols h4{margin:0 0 6px; font-size:12px; color:#64748b; letter-spacing:.04em}
+  .cols ul{margin:0; padding-left:18px}
+  .rat{font-size:13px; color:var(--ink); margin-top:10px}
+  .imp ol{margin:6px 0 0; padding-left:20px; font-size:14px; line-height:1.6}
+  pre.pt{white-space:pre-wrap; font:13px/1.6 inherit; color:var(--ink2); background:var(--chip); padding:14px 16px; border-radius:10px; margin:10px 0 0}
+  .meta{font-size:12px; color:var(--ink3); margin-top:18px}
+  .empty{padding:60px 20px; text-align:center; color:var(--ink2)}
+  .empty code{background:var(--chip); padding:2px 8px; border-radius:6px}
+  @media (max-width:900px){ body{padding:12px} .grid3,.cgrid,.cols{grid-template-columns:1fr} nav{width:60px} main{padding:20px 16px} .url{display:none} }
+</style>
+</head>
+<body data-p="riscv">
+<div class="window">
+  <div class="bar"><span class="dot" style="background:#ef4444"></span><span class="dot" style="background:#eab308"></span><span class="dot" style="background:#22c55e"></span>
+    <span class="url" id="url">http://localhost:3000/auto-verifier-dashboard</span></div>
+  <div class="shell">
+    <nav id="nav">
+      <button data-p="riscv" title="RISC-V">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="6" y="6" width="12" height="12" rx="2"/><rect x="9.5" y="9.5" width="5" height="5" rx=".5"/><path d="M9 2v4M15 2v4M9 18v4M15 18v4M2 9h4M2 15h4M18 9h4M18 15h4"/></svg>
+      </button>
+      <button data-p="ondevice" title="On-Device AI">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>
+      </button>
+      <div class="sp"></div>
+      <button title="Settings" disabled style="cursor:default">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>
+      </button>
+    </nav>
+    <main id="main"></main>
+  </div>
+</div>
+
+<script src="results/dashboard_data.js"></script>
+<script>
+const DATA = window.EVAL_DATA || {};
+const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+let cur = (location.hash.slice(1) in DATA) ? location.hash.slice(1) : (DATA.riscv ? "riscv" : (Object.keys(DATA)[0] || "riscv"));
+let sel = null;   // null = 평균, 숫자 = 세션 id
+
+function ring(score){
+  const r = 50, c = 2*Math.PI*r, off = c*(1-score/100);
+  return `<div class="ring"><svg width="118" height="118" viewBox="0 0 118 118">
+    <circle cx="59" cy="59" r="${r}" fill="none" stroke="var(--track)" stroke-width="11"/>
+    <circle cx="59" cy="59" r="${r}" fill="none" stroke="var(--accent)" stroke-width="11" stroke-linecap="round"
+      stroke-dasharray="${c}" stroke-dashoffset="${off}"/></svg><div class="n">${score}</div></div>`;
+}
+
+function render(){
+  document.body.dataset.p = cur;
+  document.querySelectorAll("nav button[data-p]").forEach(b => b.classList.toggle("on", b.dataset.p === cur));
+  const d = DATA[cur], m = document.getElementById("main");
+  document.getElementById("url").textContent = `http://localhost:3000/${cur === "riscv" ? "riscv-verifier" : "ondevice-design"}-dashboard`;
+  if(!d){
+    m.innerHTML = `<div class="empty"><h1>평가 결과 없음</h1><p>터미널에서 <code>python evaluator.py --project ${cur}</code> 를 실행한 뒤 이 페이지를 새로고침하세요.</p></div>`;
+    return;
+  }
+  const S = sel ? d.sessions.find(s => s.id === sel) : null;
+  const crit = S ? S.criteria : d.criteria_average;
+  const kind = d.evaluator_type === "verification" ? "검증(Verification)" : "설계(Design)";
+
+  m.innerHTML = `
+    <h1>${esc(d.dashboard_title)}</h1>
+    <div class="sub">${esc(d.team)} · ${esc(d.project_name)} · <b>${kind} 평가</b></div>
+
+    <div class="grid3">
+      <div class="card">
+        <div class="lbl">Assigned Role</div>
+        <p class="role-t">${esc(d.role.title)}</p>
+        <div class="role-d">${esc(d.role.summary)}</div>
+        <span class="who">${esc(d.role.member)}</span>
+      </div>
+      <div class="card"><div class="score">${ring(d.final_score)}
+        <div><div class="t1">AI SCORE</div><div class="t2">Automated Verifier</div><div class="t3">${esc(d.model)}<br>세션 ${d.sessions.length}회 평균</div></div></div>
+      </div>
+      <div class="card">
+        <div class="lbl">Session History</div>
+        <div class="sess">${d.sessions.map(s => `
+          <div class="s ${sel === s.id ? "on" : ""}" data-s="${s.id}"><div class="a">${esc(s.label)}</div><div class="b">${s.score}</div></div>`).join("")}
+        </div>
+        <div class="hint">${S ? "세션을 다시 누르면 평균으로 돌아갑니다" : "세션을 누르면 해당 세션의 채점 근거를 봅니다"}</div>
+      </div>
+    </div>
+
+    <div class="card crit">
+      <div class="lbl">Criteria Details (기준설정 근거) — ${S ? esc(S.label) + " 세션" : "3개 세션 평균"}</div>
+      <div class="cgrid">${crit.map(c => `
+        <div class="ci"><div class="row"><span>${c.id}. ${esc(c.name)}</span><b>${c.score}%</b></div>
+          <div class="trk"><div class="fill" style="width:${c.score}%"></div></div></div>`).join("")}
+      </div>
+    </div>
+
+    ${detail(d, S)}
+    <div class="meta">평가 일시 ${esc(d.evaluated_at)} · run ${esc(d.run_id)}</div>`;
+
+  m.querySelectorAll(".s").forEach(el => el.onclick = () => { const id = +el.dataset.s; sel = sel === id ? null : id; render(); });
+}
+
+function detail(d, S){
+  const sessions = S ? [S] : d.sessions;
+  const byCrit = d.criteria_average.map(ca => ({
+    ...ca,
+    items: sessions.map(s => ({label: s.label, ...s.criteria.find(x => x.id === ca.id)}))
+  }));
+  const imp = S ? S.improvements : d.sessions.flatMap(s => s.improvements).slice(0, 5);
+  return `
+  <div class="card detail">
+    <div class="dh"><div class="lbl" style="margin:0">AI 평가 근거</div></div>
+    <div class="sumline">${S ? esc(S.summary) : d.sessions.map(s => `${esc(s.label)}: ${esc(s.summary)}`).join("<br>")}</div>
+    ${byCrit.map(c => `
+      <details>
+        <summary>${c.id}. ${esc(c.name)} <span>${S ? c.items[0].score : c.score}점</span></summary>
+        ${c.items.map(it => `
+          ${S ? "" : `<div class="rat"><b>${esc(it.label)} · ${it.score}점</b></div>`}
+          <div class="rat">${esc(it.rationale)}</div>
+          <div class="cols">
+            <div><h4>근거</h4><ul>${(it.evidence||[]).map(e => `<li>${esc(e)}</li>`).join("")}</ul></div>
+            <div><h4>보완점</h4><ul>${(it.weaknesses||[]).map(e => `<li>${esc(e)}</li>`).join("")}</ul></div>
+          </div>`).join("")}
+      </details>`).join("")}
+    <details class="imp"><summary>개선 제안 <span>${imp.length}건</span></summary><ol>${imp.map(x => `<li>${esc(x)}</li>`).join("")}</ol></details>
+    <details><summary>사전학습(Pre-training) 응답 ${S ? "" : "— 1차 세션"} <span>보기</span></summary>
+      <pre class="pt">${esc((S || d.sessions[0]).pretrain_summary)}</pre></details>
+  </div>`;
+}
+
+document.querySelectorAll("nav button[data-p]").forEach(b => b.onclick = () => { cur = b.dataset.p; sel = null; render(); });
+render();
+</script>
+</body>
+</html>

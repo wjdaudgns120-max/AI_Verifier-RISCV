@@ -1,0 +1,363 @@
+{
+  "project_id": "ondevice",
+  "project_name": "YOLO26s 교육장 출입 인원 관리 시스템",
+  "dashboard_title": "On-Device AI Architecture Evaluation",
+  "team": "6조",
+  "evaluator_type": "design",
+  "role": {
+    "member": "정명훈",
+    "title": "추론 알고리즘 구축",
+    "summary": "Raspberry Pi 4대 분산 추론 파이프라인(master/worker/masker), 모델 경량화, ByteTrack 기반 출입 판정 구현."
+  },
+  "model": "Claude (claude-opus-5-5)",
+  "evaluated_at": "2026-10-20 17:21:24",
+  "run_id": "20261020_172124",
+  "final_score": 71,
+  "criteria_average": [
+    {
+      "id": 1,
+      "name": "컴포넌트 모듈화 및 결합도",
+      "score": 77,
+      "per_session": [
+        76,
+        80,
+        76
+      ]
+    },
+    {
+      "id": 2,
+      "name": "경량화 설계 및 목표 성능 근거",
+      "score": 69,
+      "per_session": [
+        70,
+        70,
+        68
+      ]
+    },
+    {
+      "id": 3,
+      "name": "분산 아키텍처 확장성",
+      "score": 74,
+      "per_session": [
+        73,
+        76,
+        73
+      ]
+    },
+    {
+      "id": 4,
+      "name": "추적·출입 판정 알고리즘 정합성",
+      "score": 72,
+      "per_session": [
+        72,
+        73,
+        72
+      ]
+    },
+    {
+      "id": 5,
+      "name": "예외 처리 및 운영 안정성",
+      "score": 60,
+      "per_session": [
+        60,
+        60,
+        61
+      ]
+    }
+  ],
+  "sessions": [
+    {
+      "id": 1,
+      "label": "1차 (모델)",
+      "focus": "모델·경량화 설계 관점: 모델 선택, imgsz, NCNN, FP16, 스레드 설정 결정의 근거와 목표 FPS 달성을 중심으로 검토하라.",
+      "score": 70,
+      "pretrain_summary": "## 1. 프로젝트 개요\n- Raspberry Pi 5(GPU/NPU 미사용) 4대에서 yolo26s-seg(NCNN, FP16, imgsz 320)로 사람을 검출·추적해 교육장 출입 인원을 세는 On-Device AI 시스템(6조).\n- 문 쪽 A구역과 실내 B구역 사이의 전이(A→B는 IN, B 출신이 A에서 2.5초 사라지면 OUT)로 인원을 판정하고, 웹페이지(app.py, 포트 8000)에서 모니터링한다.\n- 목표: 2명 이상 동시 출입 누락 없음, FPS 12 이상(근거: 달리기 12 m/s 가정 시 1m 이상 이동 정보 손실 방지, 슬라이드 5).\n\n## 2. 핵심 아키텍처/구성 요소\n- door_master.py: 웹캠 640x480 캡처(최신 1장 보관) → JPEG Q80 → ack 기반 pull 방식으로 작업자 2대에 분배. RUN_ID로 재시작 식별.\n- door_worker.py(x2): NCNN FP16 추론(conf 0.20, IOU 0.60, classes=[0]), 폴리곤 단순화(approxPolyDP) 후 마스커로 직접 전송, 마스터에 ack. 마스커 재연결 2초 주기.\n- door_masker.py: 프레임 번호 재정렬(REORDER_TIMEOUT 0.6s), BYTETracker, A/B 구역 판정(경계 띠, LINK_GUARD, BIRTH_BAND, 마스크 가림), 그리기, X11 출력, 웹 연동 파일/제어 포트 6200, door_total.json 영속화.\n- 통신은 TCP 고정 헤더(struct \"!IIdI\", \"!IIf\", \"!IIdfII\")로 각 파일 머리말에 명세되어 있다.\n- 실측: master CPU 1~2%, worker 45~55%, masker+app 4~5%(슬라이드 31~33). 모델 메타데이터는 imgsz 320, quantize 16.\n\n## 3. 평가 대상자 R&R과 책임 범위\n- 정명훈: 추론 알고리즘 구축 및 실행 파일(.py) 제작. master/worker/masker 분산 파이프라인, 모델 선택·경량화, ByteTrack 추적과 IN/OUT 판정.\n- 실행 파일의 안정성까지 책임지며, app.py(웹)는 평가 범위에서 제외된다.\n\n## 4. 설계 관점 중점 사항\n- 모델·imgsz·NCNN·FP16·스레드 결정이 Pi 실측 정량 비교로 뒷받침되는지, FPS 12 목표의 근거 타당성과 종단 FPS 실측 여부.\n- 노드 역할 분리, 프로토콜 명세, 설정 집중도, 파일 내부 단일 책임 여부.\n- pull 부하 분산, 재정렬, 최신 프레임 우선 처리의 실시간성, 작업자 추가 시 변경 범위, 마스커 단일 병목.\n- 판정 로직(ByteTrack 임계값과 conf의 관계, 히스테리시스, 출신 승계, LOST_SEC)과 IOU 0.75→0.6 조정 근거, 카운트 정확도 검증 데이터.\n- 연결 끊김·재연결, 카메라 프레임 정지 대비(보고서의 Future work), 인원 영속화, 종료 처리.\n",
+      "criteria": [
+        {
+          "id": 1,
+          "name": "컴포넌트 모듈화 및 결합도",
+          "score": 76,
+          "evidence": [
+            "door_master.py / door_worker.py / door_masker.py 머리말에 4대 구성과 역할(분배/추론/판정·출력)이 명시되어 있고, 마스터는 추론 결과를 받지 않고 작업자가 마스커로 직접 전송하는 구조라 노드 간 결합도가 낮다.",
+            "통신 프로토콜이 struct로 명세화됨: HDR_TO_WORKER/HDR_FROM_MASTER '!IIdI', ACK '!IIf', HDR_TO_MASKER/HDR '!IIdfII'이고 세 파일의 정의가 서로 일치한다. 제어 포트 JSON 명령도 door_masker.py 주석에 명세되어 있다.",
+            "각 파일 상단에 '설정' 블록(WORKERS, JPEG_QUALITY, IMGSZ/CONF/IOU, REORDER_TIMEOUT, TRACK_ARGS, 구역 비율 등)이 모여 있고, door_masker.py는 수신/제어/판정/그리기/처리 루프/화면 출력이 번호가 매겨진 섹션으로 나뉘어 있다."
+          ],
+          "weaknesses": [
+            "공통 모듈이 없어 recv_exact와 헤더 struct 정의가 3개 파일에 중복 정의되어 있다. 프로토콜을 바꾸면 세 파일을 동시에 고쳐야 한다.",
+            "노드 주소가 각 파일에 하드코딩되어 분산되어 있다(door_master.py WORKERS, door_worker.py MASKER, app.py PI_HOST). README에서도 vim으로 직접 수정하도록 안내하며, 공용 설정 파일이나 CLI 인자가 없다.",
+            "door_masker.py는 전역 상태(total, origin_of, zone_of, tracker 등)에 의존하는 단일 대형 파일이고, judge() 하나에 추적, 가림 승계, 출신 판정, IN 카운트가 몰려 있어 단일 책임 분리와 테스트 용이성이 낮다."
+          ],
+          "rationale": "노드 역할 분리와 프로토콜 명세는 명확하지만, 공통 코드와 설정이 중복·분산되어 있고 마스커 내부가 전역 상태 기반이라 일부 보완이 필요하다."
+        },
+        {
+          "id": 2,
+          "name": "경량화 설계 및 목표 성능 근거",
+          "score": 70,
+          "evidence": [
+            "슬라이드 16~18에서 단계별 정량 비교를 제시: imgsz 640→320 추론 701.0→225.1ms, pt→NCNN 213.5→66.1ms, FP32→FP16 크기 41.7→21.0MB(mAP Box 0.4835/0.4836, Mask 0.357 유지). model_metadata.yaml의 imgsz [320,320], quantize 16과 door_worker.py의 export 명령(half=True imgsz=320)이 최종 설정과 일치한다.",
+            "스레드 설계가 코드에 반영됨: door_worker.py는 OMP_WAIT_POLICY=PASSIVE와 TORCH_THREADS=1(NCNN과 코어 경합 방지), door_masker.py는 OMP/BLAS 1스레드와 BUSY_WAIT 비교 스위치, door_master.py는 cv2.setNumThreads(2)를 쓴다. 실측 CPU/RAM은 슬라이드 31~33에 있다.",
+            "door_worker.py의 SPIKE_MS=120(평소 60ms대)과 cpu_state()(클럭/온도/throttle)로 추론 지연과 쓰로틀링을 모니터링한다."
+          ],
+          "weaknesses": [
+            "FPS 12 근거(슬라이드 5)가 '달리기 12 m/s'라는 비현실적 가정(보행 약 1.4 m/s, 전력질주도 약 10 m/s)과 임의의 '1m 손실' 기준에 기대고 있다. 정작 종단 FPS 실측값은 보고서에 없고(슬라이드 31~33은 CPU/RAM만), 슬라이드 50의 'FPS 12 이상 확보'는 수치로 입증되지 않았다.",
+            "seg 선택(슬라이드 15)의 근거가 Intel Xeon, imgsz 640에서 측정한 수치이고 seg가 36% 더 느림(87.2 vs 118.4ms)에도 Pi에서 비교하지 않았다. 320 축소에 따른 정확도 하락(Box 0.591→0.486, Mask 0.468→0.357, 슬라이드 16)이 카운팅 요구에 미치는 영향도 분석하지 않았다.",
+            "슬라이드 13의 'YOLO26n 1대 CPU 과부하'는 정량 데이터가 없고 '보드 3대 분업'이라 적혀 최종 4대 구성과도 불일치한다. FP16은 추론 시간 이득이 없음(67.5 vs 67.8ms)을 밝히지 않았고, NCNN 스레드 수는 명시 설정이 없으며, door_masker.py BUSY_WAIT 실험 결과도 보고되지 않았다."
+          ],
+          "rationale": "경량화 각 단계는 Pi 정량 비교로 대체로 뒷받침되나, 핵심 목표인 FPS 12의 근거가 약하고 달성 실측이 없으며 seg 선택은 타 플랫폼 데이터에 의존해 부분 충족에 머문다."
+        },
+        {
+          "id": 3,
+          "name": "분산 아키텍처 확장성",
+          "score": 73,
+          "evidence": [
+            "door_master.py의 FrameGrabber는 CAP_PROP_BUFFERSIZE=1에 최신 프레임 1장만 보관하고, take_frame()에서 비어 있는 작업자가 최신 프레임을 가져가며 disp_lock으로 같은 프레임을 중복 분배하지 않는다(pull 기반 자동 부하 분산과 백프레셔).",
+            "door_masker.py process_loop가 expect 기반으로 재정렬하고, REORDER_TIMEOUT 0.6s 또는 버퍼 30장 초과 시 건너뛴다. RUN_ID 변경을 감지하면 old_runs로 늦게 온 옛 프레임을 버리고 추적을 초기화한다.",
+            "작업자 추가는 door_master.py의 WORKERS 리스트에 항목을 추가하는 것으로 충분하다. 마스커는 접속마다 스레드(worker_conn)를 만들어 IP:포트로 구분하고, 판정은 t_cap(마스터 단일 시계) 기준이라 노드 간 시계 차이의 영향을 받지 않는다."
+          ],
+          "weaknesses": [
+            "작업자당 in-flight 프레임이 1장인 stop-and-wait 구조다(sendall → recv ack). 네트워크 왕복과 JPEG 인코딩이 매 프레임 직렬로 더해지는데, 이 오버헤드를 측정하거나 파이프라이닝을 검토하지 않았다.",
+            "작업자가 프레임 처리 도중 끊기면 마스커가 REORDER_TIMEOUT 0.6s 동안 다음 번호를 기다리며 출력과 판정이 정지한다(약 7~9프레임분 지연). 작업자 상태를 알면서도 마스터가 이를 마스커에 알려 즉시 건너뛰게 하는 경로가 없다.",
+            "마스커(door_masker.py)가 판정, 렌더링, JPEG 재인코딩, 웹 연동을 혼자 맡는 단일 장애점이자 병목이며 이중화가 없다. 작업자는 수신한 JPEG를 마스커로 다시 전송하므로 작업자 수에 비례해 마스커 수신 대역이 늘어나는 점도 확장성 분석에 없다."
+          ],
+          "rationale": "pull 분배, 최신 프레임 우선, 재정렬과 재시작 감지까지 실시간 분산 설계의 요소는 잘 갖췄으나, 작업자 장애 시 지연, 직렬 ack 오버헤드, 마스커 단일 병목에 대한 정량 분석과 대응이 부족하다."
+        },
+        {
+          "id": 4,
+          "name": "추적·출입 판정 알고리즘 정합성",
+          "score": 72,
+          "evidence": [
+            "door_masker.py get_zone()은 BAND(경계 띠) 안에서 이전 구역을 유지하는 히스테리시스를 쓰고, 마스크 무게중심(judge_point, MASK_MIN_FILL 미만이면 박스 중심)으로 판정점을 잡는다.",
+            "가림·재등장 대응: occlusion_map()의 마스크 기반 가림자 추적, visible_anchor()를 통한 '가림자 뒤 재등장' 승계, MERGE_DIST 근처 끊김 승계, LINK_GUARD=2와 BIRTH_BAND_RATIO로 출신 오승계를 막는다. LOST_SEC/REAPPEAR_SEC 2.5s는 track_buffer(약 1.8s)보다 길게 잡은 근거가 주석에 있다.",
+            "IN은 출신 A인 ID의 A→B 전이 시점에 즉시 세고 출신을 B로 바꿔 중복 IN을 막는다. OUT은 finalize()에서 '출신 B, 마지막 구역 A, 소실'일 때만 세어 통과자(A→A)나 실내 소실(B→B)을 무효 처리한다. NMS IOU 0.75→0.6 조정은 슬라이드 45에 문제/원인/조치/결과로 기록되어 있다."
+          ],
+          "weaknesses": [
+            "TRACK_ARGS의 track_low_thresh=0.1이 검출 CONF=0.20(door_worker.py)보다 낮아, ByteTrack 2차 매칭 대상이 사실상 0.20~0.25 구간뿐이다. 가림 시 저신뢰 박스를 살리는 ByteTrack의 핵심 이점이 상당 부분 사라지는데 이를 인지한 흔적이 없다. TRACK_FPS=30도 실제 처리율(12~16fps)과 달라 칼만/버퍼 시간 해석이 부정확하다.",
+            "IOU 0.75→0.6 조정은 정성 서술뿐이다(슬라이드 45). NMS IOU를 낮추면 겹쳐 지나가는 두 사람 중 한 명이 억제될 위험이 커지는데, 이는 '동시 출입 누락 없음' 목표와 상충하며 그 트레이드오프를 검증하지 않았다.",
+            "보고서의 OUT 정의(슬라이드 24 'B→A' 또는 '2.5초 미탐지')와 코드가 다르다. 코드에서 B→A 전이는 '[이동]' 로그만 남기고, OUT은 A에서 2.5s 소실 후에만 확정되므로 OUT 반영이 지연되고 A에 머무는 사람은 세지 않는다. 동시 출입 정확도의 정량 검증(시나리오별 정답 대비 카운트)이 없고, door_sim.py는 제출되지 않았다."
+          ],
+          "rationale": "히스테리시스, 가림 승계, 출신 보완 등 판정 로직은 정교하게 설계되었으나, ByteTrack 임계값과 conf의 불일치, NMS 조정의 트레이드오프 미검증, 정량 정확도 검증 부재로 정합성 입증이 부분적이다."
+        },
+        {
+          "id": 5,
+          "name": "예외 처리 및 운영 안정성",
+          "score": 60,
+          "evidence": [
+            "재연결 설계: door_master.py worker_loop는 작업자 연결 실패나 끊김 시 2초 후 재접속하고, door_worker.py MaskerLink는 마스커 단절 중에도 추론과 ack를 계속하며 2초마다 재연결한다. 작업자는 마스터가 끊기면 accept로 복귀한다.",
+            "door_masker.py는 RUN_ID로 마스터 재시작을 감지해 추적만 초기화하고 인원 수는 유지한다. door_total.json에 write_atomic(tmp 저장 후 os.replace)으로 total을 영속화하고, 제어 포트에는 timeout(3s), ctrl_done.wait(2), 음수 검증이 있다.",
+            "보고서 슬라이드 50, 54가 장기 구동 시 door_master 정지 현상을 한계로 인정하고 재연결 코드, 로그 수집, 24시간 테스트를 Future work로 제시한다."
+          ],
+          "weaknesses": [
+            "보고서에서 확인된 카메라 정지 문제가 코드 수준에서 대비되어 있지 않다. door_master.py FrameGrabber._run은 read 실패 시 5ms 대기 후 무한 재시도만 하고 cap 재오픈, 워치독, 경고가 없다. cap.read()가 블로킹되면 스레드가 영구 정지하고 take_frame()은 0.5s timeout으로 무한 루프만 돈다. 상태 출력에 '카메라 0fps'가 찍혀도 아무 조치가 없다.",
+            "예외 범위가 좁다. door_worker.py에서 imdecode가 None을 반환하면 model.predict 예외가 (ConnectionError, OSError) 밖이라 작업자 프로세스 전체가 종료된다. door_masker.py process_loop/judge에서 예외가 나면 데몬 스레드가 조용히 죽고, SHOW=True이면 화면 루프만 살아 있어 장애가 감지되지 않는다(워치독 없음).",
+            "파일 로그와 헬스체크가 없다(print만 사용). in_cnt/out_cnt는 영속화되지 않으며, door_master.py 종료 시 cap.release()와 소켓 정리가 없다. 마스커는 프레임 유입 중단(마스터 정지)을 웹/stats에 경보로 알리지 않는다."
+          ],
+          "rationale": "네트워크 재연결과 인원 영속화는 설계되어 있으나, 보고서가 스스로 지적한 카메라 정지에 대한 코드 대비가 전무하고 처리 스레드의 예외 및 워치독 설계가 없어 운영 안정성에 주요 누락이 있다."
+        }
+      ],
+      "summary": "경량화 비교는 정량적이나 FPS 실측과 장애 대비가 미흡한 설계",
+      "improvements": [
+        "종단 FPS(마스커 기준)와 프레임별 지연을 Pi에서 실측해 보고하고, FPS 목표 근거를 보행 속도(약 1.5 m/s)와 ByteTrack 매칭 허용 이동량으로 다시 산정할 것",
+        "door_master.py FrameGrabber에 '마지막 프레임 시각' 워치독을 두어 N초 무응답 시 cap.release()와 재오픈을 하고, 처리 스레드 예외 포착과 파일 로그, 24시간 구동 테스트를 추가할 것",
+        "track_low_thresh를 검출 conf보다 높게 맞추거나(예: 검출 conf 0.1) TRACK_FPS를 실제 처리율에 맞추고, NMS IOU 0.6/0.75와 동시 출입 시나리오별 카운트 정확도를 정량 비교하며, 공통 프로토콜/설정 모듈로 중복을 제거할 것"
+      ]
+    },
+    {
+      "id": 2,
+      "label": "2차 (분산)",
+      "focus": "분산 시스템 설계 관점: 4-보드 역할 분리, 통신 프로토콜, 부하 분산·재정렬·재연결 구조를 중심으로 검토하라.",
+      "score": 72,
+      "pretrain_summary": "## 사전학습 확인 요약\n\n**1. 프로젝트 개요**\n- YOLO26s-seg 기반으로 교육장 출입 인원(IN/OUT)을 세는 On-Device AI 시스템 (Raspberry Pi 5 4대, CPU 전용)\n- 목표: 2명 이상 동시 출입 시 누락 없는 카운트, 웹페이지 제공, FPS 12 이상 (근거: 12 m/s 이동 가정)\n- 최종 설정: yolo26s-seg, NCNN, FP16, imgsz 320, conf 0.2, IOU 0.6, person class (슬라이드 19, model_metadata.yaml)\n\n**2. 핵심 아키텍처/구성 요소**\n- door_master.py: 웹캠 640x480 캡처, JPEG Q80, 작업자 ack 기반 pull 분배, RUN_ID로 재시작 식별\n- door_worker.py(x2): NCNN FP16 seg 추론, 폴리곤 단순화, 마스커로 직접 전송 후 마스터에 ack, 마스커 2초 재연결\n- door_masker.py: 프레임 번호 재정렬(REORDER_TIMEOUT 0.6s), ByteTrack, A/B 구역 판정(마스크 무게중심, 가림, LINK_GUARD, BIRTH_BAND), X11 출력, 제어 포트 6200\n- 통신: TCP + struct 헤더(!IIdI / !IIf / !IIdfII), 촬영시각(t_cap)을 마스터 기준 시계로 사용\n- app.py(웹, 포트 8000)는 평가 대상자 담당이 아니라 소스가 제외됨\n\n**3. 평가 대상자(정명훈)의 R&R**\n- 추론 알고리즘 구축 및 실행 파일 제작: master/worker/masker 분산 파이프라인, 모델 경량화, 추적 및 IN/OUT 판정\n- 책임 범위: 모델 선택·경량화 결정, 4보드 분산·통신 설계, ByteTrack 판정 로직, 실행 파일 안정성\n\n**4. 설계 관점 중점 사항**\n- 경량화 결정(n/s, seg, imgsz, NCNN, FP16)이 목표 하드웨어 위 정량 비교로 뒷받침되는지, FPS 12 근거와 실측 입증 여부\n- 노드 역할 분리, 프로토콜 명세, 설정 집중도와 결합도\n- pull 부하 분산, 재정렬, 백프레셔, 마스커 단일 노드 병목 등 확장성\n- 동시 출입·가림·재등장·이중 검출에서 판정 정합성(ByteTrack 파라미터와 conf 사이 정합 포함)\n- 연결 끊김/재연결, 카메라 정지(보고서 한계) 대응, 인원 영속화 등 운영 안정성\n",
+      "criteria": [
+        {
+          "id": 1,
+          "name": "컴포넌트 모듈화 및 결합도",
+          "score": 80,
+          "evidence": [
+            "door_master.py / door_worker.py / door_masker.py 상단 주석에 4대 역할(캡처·분배 / 추론·윤곽 추출 / 재정렬·추적·판정·출력)이 명시되고, 마스터는 opencv·numpy만 사용해 torch 비의존(door_master.py 주석)",
+            "통신 헤더가 파일 주석과 코드에 명세되고 서로 일치함: HDR_TO_WORKER/HDR_FROM_MASTER '!IIdI', ACK '!IIf', HDR_TO_MASKER/HDR '!IIdfII' (door_master.py, door_worker.py, door_masker.py)",
+            "작업자가 결과를 마스커로 직접 보내고 마스터에는 ack만 반환해 마스터가 결과 경로에서 분리됨(door_worker.py 주석, 슬라이드 26~29)",
+            "설정값이 각 파일 상단 '설정' 블록에 모여 있음(WORKERS, MASKER, IMGSZ/CONF/IOU, TRACK_ARGS, 구역·판정 상수)"
+          ],
+          "weaknesses": [
+            "프로토콜 struct 정의와 recv_exact가 세 파일에 중복 정의되어 공용 모듈이 없음. 헤더에 magic/버전 필드가 없어 한쪽만 바뀌면 조용히 스트림이 어긋남",
+            "노드 IP가 WORKERS(door_master.py), MASKER(door_worker.py)에 하드코딩되어 README.md가 vi로 직접 수정하도록 안내함. 설정 파일이나 CLI 인자가 없음",
+            "door_masker.py 한 파일이 수신·재정렬·추적·판정·그리기·웹 IPC·X11을 모두 맡고, total/in_cnt/origin_of 등 전역 가변 상태에 의존함(섹션 구분은 되어 있음)"
+          ],
+          "rationale": "노드 간 역할 분리와 헤더 명세가 명확하고 코드와 일치해 결합도가 낮다. 다만 프로토콜·설정이 파일마다 중복·하드코딩되어 있고 마스커 내부가 단일 책임으로 나뉘지 않아 일부 보완이 필요하다."
+        },
+        {
+          "id": 2,
+          "name": "경량화 설계 및 목표 성능 근거",
+          "score": 70,
+          "evidence": [
+            "단계별 정량 비교가 있음: 11n vs 26n(슬라이드 12), imgsz 640 701.0ms vs 320 225.1ms(슬라이드 16), pt 213.5ms vs NCNN 66.1ms(슬라이드 17), FP32 41.7MB vs FP16 21.0MB에 정확도 0.4835/0.4836 유지(슬라이드 18)",
+            "최종 설정이 model_metadata.yaml(task: segment, imgsz 320, quantize: 16)과 door_worker.py(IMGSZ=320, CONF=0.20, IOU=0.60, classes=[0])에서 일치함",
+            "스레드 설계가 코드로 확인됨: door_worker.py에서 OMP_WAIT_POLICY=PASSIVE, TORCH_THREADS=1, door_master.py에서 OMP 4/cv2 2, door_masker.py에서 BUSY_WAIT 비교 스위치",
+            "실측 CPU/RAM 제시: master 1~2%/0.5~0.6GB, worker 45~55%/0.9~1.0GB, masker+app 4~5%/0.8~0.9GB(슬라이드 31~33)"
+          ],
+          "weaknesses": [
+            "FPS 12 근거가 부정확함: 실내 출입 인원의 이동 속도로 12 m/s(세계 기록급 질주 속도)를 가정했고, '프레임당 1m 이동' 기준이 추적 매칭이나 BAND 폭과 연결되어 있지 않음(슬라이드 5)",
+            "FPS 12 달성이 실측 수치로 제시되지 않음. 슬라이드 31~33은 CPU/RAM만 보여주고, 약 16fps는 door_masker.py 주석(LOST_SEC)에서만 간접적으로 나옴",
+            "n→s 전환(슬라이드 13)과 det vs seg 결정(슬라이드 15, Intel Xeon 측정)이 목표 보드인 Pi 5 위의 정량 비교로 뒷받침되지 않음. 320 전환 시 person Box mAP 0.591→0.486, Mask 0.468→0.357 하락의 영향도 분석되지 않음",
+            "NCNN 추론 스레드 수는 명시적으로 설정하지 않았고 worker CPU 45~55%의 여유분을 어떻게 활용할지 근거가 없음"
+          ],
+          "rationale": "엔진·해상도·정밀도 결정은 실측 표로 잘 뒷받침된다. 그러나 FPS 목표 근거가 물리적으로 부정확하고, 목표 FPS 달성 실측과 모델 크기·task 선택의 타깃 보드 비교가 빠져 있어 부분 충족으로 본다."
+        },
+        {
+          "id": 3,
+          "name": "분산 아키텍처 확장성",
+          "score": 76,
+          "evidence": [
+            "pull 기반 분배: door_master.py worker_loop가 ack(recv_exact(ACK)) 이후에만 take_frame()으로 다음 최신 프레임을 가져가고, FrameGrabber는 최신 1장만 보관(CAP_PROP_BUFFERSIZE=1)해 master→worker 구간에 백프레셔와 자동 부하 분산이 있음",
+            "door_masker.py process_loop가 expect 번호 기반으로 재정렬하고 REORDER_TIMEOUT=0.6 또는 len(buffer)>30이면 건너뜀. RUN_ID/old_runs로 마스터 재시작 시 번호를 다시 맞춤",
+            "판정 시간을 각 Pi의 로컬 시계가 아닌 마스터의 촬영시각 t_cap 기준으로 써서 노드 간 시계 차이를 피함(judge의 now_t = t_cap)",
+            "작업자 추가는 WORKERS 리스트에 항목만 더하면 되고 마스커 accept_loop가 연결마다 스레드를 띄워 개수 제한이 없음. X11 출력은 display_loop로 분리되어 판정을 막지 않음"
+          ],
+          "weaknesses": [
+            "worker→masker 구간에는 최신 프레임 우선 처리가 없음: expect가 buffer에 있으면 순서대로 pop만 하므로 마스커가 느려지면 buffer와 지연이 무한정 커짐(len>30 조건은 elif 분기에서만 동작)",
+            "process_loop에서 buffer가 비어 있지 않은데 expect가 없으면 wait 없이 루프를 돌아 최대 0.6s 동안 busy-spin함",
+            "마스커가 단일 노드(SPOF)이자 수렴점이고, 작업자마다 한 번에 1프레임만 처리하는 stop-and-wait 구조라 JPEG 인코딩·네트워크 시간이 작업자 유휴 시간으로 그대로 남음",
+            "작업자가 끊기면 그 프레임마다 마스커가 0.6s 동안 멈췄다가 건너뛰어 실시간성이 일시적으로 떨어짐(door_master.py 끊김 로그 주석)"
+          ],
+          "rationale": "pull 분배, RUN_ID 기반 재정렬, 마스터 시계 기준 판정은 분산 설계로서 타당하고 작업자 확장도 쉽다. 다만 마스커 단계의 백프레셔·최신 프레임 정책이 없고 단일 마스커 병목이 남아 있다."
+        },
+        {
+          "id": 4,
+          "name": "추적·출입 판정 알고리즘 정합성",
+          "score": 73,
+          "evidence": [
+            "get_zone이 ±BAND(BAND_RATIO 0.025) 히스테리시스로 경계 진동을 막고, 출신(origin_of) 기반으로 A출신이 A→B면 IN, B출신이 A에서 LOST_SEC 뒤 사라지면 finalize에서 OUT으로 처리해 이중 카운트를 막음(door_masker.py judge/finalize, 슬라이드 24)",
+            "가림·재등장 대응: occlusion_map(마스크 가림 비율), visible_anchor, MERGE_DIST 기반 ID 연결, LINK_GUARD=2, BIRTH_BAND_RATIO 0.05가 각 설계 의도 주석과 함께 구현됨",
+            "LOST_SEC/REAPPEAR_SEC 2.5s를 ByteTrack track_buffer 30프레임(약 16fps에서 1.8초)보다 길게 잡은 근거가 코드 주석에 있음",
+            "model_metadata.yaml end2end: false로 NMS가 실제로 쓰이므로, IOU 0.75→0.6 조정(슬라이드 45)은 중복 박스 억제 방향으로 맞는 조치임"
+          ],
+          "weaknesses": [
+            "door_worker.py CONF=0.20이 TRACK_ARGS track_low_thresh=0.1보다 높아 ByteTrack 2차(저신뢰) 매칭 범위가 0.20~0.25로 좁아짐. 보고서가 내세운 저신뢰 박스 매칭의 장점(슬라이드 21)이 거의 무력화됨",
+            "동시 출입·가림 시나리오에서 카운트 정확도를 정량 검증한 결과(시도 수, 오카운트 수)가 없음. LINK_GUARD 값의 근거인 door_sim.py는 자료에 없어 확인할 수 없음",
+            "IOU 0.6 하향은 붙어서 들어오는 2인을 하나로 합칠 위험이 있는데, 동시 출입 목표와의 trade-off나 전후 수치 비교가 없음(슬라이드 45는 정성 서술만)",
+            "마스터 재시작 시 reset_tracking이 origin_of/last_seen을 지워 OUT 확정 대기 중인 트랙이 집계되지 않고 사라짐"
+          ],
+          "rationale": "히스테리시스, 출신 기반 판정, 가림 연결 등 판정 로직은 상황별로 정교하게 설계되었다. 그러나 conf와 ByteTrack 임계값이 서로 맞지 않고 카운트 정합성을 정량 검증하지 않아 일부만 입증된다."
+        },
+        {
+          "id": 5,
+          "name": "예외 처리 및 운영 안정성",
+          "score": 60,
+          "evidence": [
+            "재연결이 구현됨: door_master.py worker_loop가 끊기면 2초 뒤 재접속(소켓 timeout 5s), door_worker.py MaskerLink가 2초 간격으로 재연결하고 마스커가 끊겨도 추론을 계속함, 마스터 연결이 끊기면 다시 accept",
+            "door_masker.py가 door_total.json을 write_atomic(tmp 파일 후 os.replace)으로 IN/OUT마다 저장하고 재시작 시 불러옴. RUN_ID로 마스터 재시작을 감지함",
+            "제어 포트에 3s timeout, ctrl_done.wait(2)가 있고 DISPLAY가 없으면 X11 출력을 자동으로 끔(door_masker.py main)"
+          ],
+          "weaknesses": [
+            "보고서가 밝힌 장기 구동 시 카메라 정지(슬라이드 50, 54)에 대한 코드 대비가 없음: FrameGrabber._run은 read 실패 시 sleep(0.005) 후 무한 재시도할 뿐 VideoCapture를 다시 열지 않고, read가 블록되는 경우를 감시하는 watchdog도 없음. take_frame은 timeout 0.5로 무한히 기다림",
+            "시작 시 'while grab.frame is None' 루프가 타임아웃 없이 무한 대기함(door_master.py)",
+            "door_worker.py에서 imdecode가 None을 돌려주면 cv2.imwrite나 model.predict 예외가 (ConnectionError, OSError)로 잡히지 않아 작업자 프로세스 전체가 종료됨",
+            "door_masker.py worker_conn에 recv timeout이나 keepalive가 없어 half-open 연결이 남을 수 있음. 로그는 stdout에만 출력되고 파일 로그·자동 재시작(systemd 등)이 없음. in_cnt/out_cnt는 영속화되지 않음"
+          ],
+          "rationale": "네트워크 재연결과 인원 영속화는 잘 설계되었다. 그러나 보고서가 인정한 핵심 장애인 카메라 정지에 대해 감지·재오픈·감시 장치가 전혀 없고 작업자 예외 처리에도 구멍이 있어 주요 누락으로 본다."
+        }
+      ],
+      "summary": "분산 구조·재정렬 설계는 탄탄하나 카메라 장애 대응과 성능 검증이 미흡함",
+      "improvements": [
+        "FrameGrabber에 프레임 정지 감시(watchdog, 예: N초간 fid 미증가)를 넣고 VideoCapture 재오픈·로그 기록을 추가한 뒤 24시간 구동 시험으로 검증",
+        "worker CONF를 track_low_thresh 이하(예: 0.1)로 낮추고 ByteTrack 임계값을 재정렬한 다음, 동시 출입·가림 시나리오별 카운트 정확도를 정량 표로 측정(IOU 0.75 vs 0.6 포함)",
+        "프로토콜·설정을 공용 모듈과 설정 파일로 통합(magic/버전 헤더 포함)하고, 마스커 재정렬 버퍼에 최신 프레임 우선 드롭 정책과 조건 대기를 넣으며, 실측 FPS(마스커 fps_now)를 보고서에 수치로 제시"
+      ]
+    },
+    {
+      "id": 3,
+      "label": "3차 (판정)",
+      "focus": "알고리즘 설계 관점: ByteTrack 추적과 IN/OUT 판정 로직의 정합성, 엣지 상황 대응을 중심으로 검토하라.",
+      "score": 70,
+      "pretrain_summary": "## 1. 프로젝트 개요\n- YOLO26s-seg로 사람을 검출·추적하고 A(문 쪽)→B(실내) 구역 전이로 IN/OUT을 판정해 교육장 인원을 세는 On-Device AI 시스템 (6조).\n- Raspberry Pi 5 4대(GPU/NPU 미사용)로 분산 추론하고, 웹(app.py, 8000번 포트)에서 초기 인원 설정과 모니터링을 한다.\n- 목표: 2명 이상 동시 출입 시 누락 없는 카운트, FPS 12 이상 (근거: 달리기 12 m/s 가정, 슬라이드 5).\n\n## 2. 핵심 아키텍처/구성 요소\n- door_master.py: 웹캠 640×480 → 최신 프레임만 보관 → JPEG Q80 → ack 기반 pull 분배(작업자 2대), RUN_ID/seq 헤더.\n- door_worker.py ×2: NCNN FP16 yolo26s-seg(imgsz 320, conf 0.20, IOU 0.60, class 0) → 박스+단순화 폴리곤을 마스커로 직접 전송, 마스터에 ack, 2초 재연결.\n- door_masker.py: seq 재정렬(REORDER_TIMEOUT 0.6s) → ByteTrack → 마스크 무게중심/가림 기반 A/B 판정(BAND, LINK_GUARD, BIRTH_BAND, LOST_SEC 2.5s) → 렌더링/X11, /tmp 파일 + 제어 포트 6200, door_total.json 영속화.\n- 경량화: 26n→26s(보드 분업), seg, 320, NCNN, FP16, OMP PASSIVE/스레드 제한 (슬라이드 12~19).\n- 실측: master CPU 1~2%, worker 45~55%, masker+app 4~5% (슬라이드 31~33).\n\n## 3. 평가 대상자 R&R과 책임 범위\n- 정명훈: 추론 알고리즘 구축 및 실행 파일(.py) 제작 (이기광과 공동, 슬라이드 7).\n- 책임 범위: 모델 선택·경량화, 4-보드 분산 구조와 통신, ByteTrack 추적·출입 판정 로직, 실행 파일 안정성 (app.py 제외).\n\n## 4. 설계 관점 중점 사항\n- 설계 결정(모델/imgsz/NCNN/FP16/스레드)이 Pi 실측 정량 비교로 뒷받침되는지, FPS 12 근거와 달성 실측이 있는지.\n- master/worker/masker 분리, 프로토콜 헤더 명세 일관성, 설정 집중도와 파일 내부 책임 분리.\n- pull 분배·재정렬·최신 프레임 우선의 실시간성, 노드 추가·장애 시 영향과 마스커 단일 병목.\n- 추적·판정 로직이 동시 출입·가림·재등장·이중 검출에서 정합한지, 파라미터 간 일관성(conf vs track 임계값, track_buffer vs LOST_SEC)과 검증 근거.\n- 재연결·카메라 정지 대비·인원 영속화·종료 처리 등 운영 안정성이 코드에 반영되었는지.\n",
+      "criteria": [
+        {
+          "id": 1,
+          "name": "컴포넌트 모듈화 및 결합도",
+          "score": 76,
+          "evidence": [
+            "door_master.py/door_worker.py/door_masker.py 상단 주석에 3역할과 TCP 헤더 형식이 명세되어 있고, struct 정의(HDR_TO_WORKER '!IIdI', ACK '!IIf', HDR_TO_MASKER/HDR '!IIdfII')가 세 파일에서 서로 일치함",
+            "door_master.py는 ultralytics/torch 없이 opencv·numpy만 쓰고 결과를 받지 않으며, 작업자가 마스커로 직접 전송함(door_worker.py MaskerLink). 노드 간 결합이 ack 하나로 최소화됨",
+            "door_masker.py는 웹 앱과 /tmp/door_frame.jpg, /tmp/door_stats.json, 제어 포트 6200의 JSON 한 줄 프로토콜로만 연결됨(APP_LINK 스위치)"
+          ],
+          "weaknesses": [
+            "IP·포트가 각 파일에 하드코딩(WORKERS, MASKER, PORT)되어 README가 vi로 직접 수정하도록 안내함. 공통 설정 파일이나 CLI 인자가 없음",
+            "recv_exact가 세 파일에 중복되어 있고 공통 프로토콜 모듈이 없음. door_worker.py의 counts는 '>u4'(빅엔디언)인데 박스/윤곽 float32는 네이티브 엔디언이라 프로토콜 바이트 순서가 섞여 있음",
+            "door_masker.py 한 파일(약 700줄)에 수신·재정렬·추적·판정·그리기·웹 IPC가 전역 변수(total, tracker, origin_of 등)를 공유하며 섞여 있어 단일 책임 분리가 약함"
+          ],
+          "rationale": "노드 간 역할 분리와 헤더 명세는 코드와 일치해 명확하다. 다만 설정이 흩어져 있고, 마스커 내부가 전역 상태 기반의 단일 파일이라 모듈화가 일부 부족하다."
+        },
+        {
+          "id": 2,
+          "name": "경량화 설계 및 목표 성능 근거",
+          "score": 68,
+          "evidence": [
+            "슬라이드 16~18의 단계별 정량 비교: 640→320 추론 701.0→225.1ms, pt→NCNN 213.5→66.1ms, FP32→FP16 41.7→21.0MB(정확도 0.4835/0.4836 유지). 슬라이드 19와 model_metadata.yaml(imgsz 320, quantize 16, task segment), door_worker.py(IMGSZ 320, CONF 0.20, IOU 0.60)가 일치함",
+            "door_worker.py는 OMP_WAIT_POLICY=PASSIVE, TORCH_THREADS=1로 NCNN과 코어 경합을 피하고, SPIKE_MS 120과 cpu_state()로 쓰로틀링을 진단함. door_masker.py는 BUSY_WAIT 비교 스위치를 둠",
+            "슬라이드 31~33에서 노드별 CPU/RAM 실측(worker 45~55%, master 1~2%, masker+app 4~5%)을 제시함"
+          ],
+          "weaknesses": [
+            "FPS 12 근거(슬라이드 5)의 '달리기 속도 12 m/s'는 사실상 단거리 세계기록 수준이라 실내 출입 상황에 맞지 않음. 또 '1m 정보 소실'과 추적 매칭 성공 조건(프레임 간 IoU) 사이의 연결이 없음",
+            "최종 시스템 FPS 실측값이 보고서에 없음. 슬라이드 50의 'FPS 12 이상 확보'는 수치 근거 없이 주장만 있고, 슬라이드 31~33에는 CPU/RAM만 있음",
+            "슬라이드 13의 26n→26s 결정에 정량 비교가 없음. 슬라이드 15의 seg 속도는 Intel Xeon·640 기준이라 Pi 결정 근거로 부적합하고, 320 전환에 따른 mAP 하락(Box 0.591→0.486, Mask 0.468→0.357)의 영향 분석도 없음"
+          ],
+          "rationale": "경량화 각 단계를 정량 비교로 결정한 점은 좋다. 그러나 핵심 목표인 FPS 12의 근거 가정이 비현실적이고, 달성을 입증하는 실측 FPS가 없어 부분 충족이다."
+        },
+        {
+          "id": 3,
+          "name": "분산 아키텍처 확장성",
+          "score": 73,
+          "evidence": [
+            "door_master.py의 FrameGrabber는 최신 1장만 보관(CAP_PROP_BUFFERSIZE 1)하고, take_frame()·worker_loop()는 ack를 받은 작업자가 가장 최신 프레임을 가져가는 pull 방식으로 자동 부하 분산과 백프레셔를 구현함",
+            "door_masker.py의 process_loop는 seq 기반 재정렬, REORDER_TIMEOUT 0.6s 또는 buffer 30장 초과 시 건너뛰기, RUN_ID 변경 감지(need_reset)로 마스터 재시작에 대응함",
+            "작업자 추가는 door_master.py의 WORKERS 목록에 한 줄을 넣으면 되고, 마스커는 연결마다 스레드를 띄워(accept_loop) 코드 변경이 필요 없음"
+          ],
+          "weaknesses": [
+            "작업자마다 처리 중인 프레임이 1장뿐인 stop-and-wait 구조라 인코딩·전송·ack 왕복 시간이 처리량을 직접 깎음. 파이프라이닝이 없음",
+            "작업자가 프레임 처리 중에 끊기면 해당 seq가 사라져 마스커 전체가 최대 0.6s 정지함. 판정·JPEG 재인코딩·그리기가 마스커 한 스레드에 몰린 단일 병목임",
+            "작업자 1대 vs 2대(N대) FPS 확장 실측이 없고, 슬라이드 26의 'N/2 fps'는 균등 분배를 가정한 것뿐임"
+          ],
+          "rationale": "pull 분배·최신 프레임 우선·재정렬 설계가 코드로 확인되어 실시간성은 잘 고려되었다. 다만 확장성 실측이 없고, 마스커 단일 노드와 stop-and-wait 구조가 병목으로 남아 있다."
+        },
+        {
+          "id": 4,
+          "name": "추적·출입 판정 알고리즘 정합성",
+          "score": 72,
+          "evidence": [
+            "door_masker.py judge(): IN은 prev A→new B이면서 origin_of가 A일 때만 세고 이후 origin을 B로 바꿔 이중 IN을 막음. OUT은 finalize()에서 출신 B·마지막 구역 A로 LOST_SEC/REAPPEAR_SEC 2.5s 동안 사라진 경우에만 확정해 문 앞에서 되돌아오는 경우의 오카운트를 막음",
+            "get_zone()은 BAND(±2.5%) 히스테리시스로 경계 진동을 억제함. tracks[:, -1](det_idx)로 마스크를 트랙에 정확히 매핑해 judge_point() 마스크 무게중심과 occlusion_map() 가림 판정에 사용함",
+            "가림 후 재등장은 occluder_of/visible_anchor로 출신을 승계하고 MERGE_DIST로 보조함. LINK_GUARD=2와 BIRTH_BAND_RATIO로 잘못된 출신 승계를 제한함. IOU 0.75→0.6 조정(슬라이드 45)이 door_worker.py IOU=0.60에 반영됨"
+          ],
+          "weaknesses": [
+            "door_worker.py CONF=0.20 때문에 0.1~0.2 검출은 아예 전달되지 않아 TRACK_ARGS track_low_thresh=0.1이 무의미함. ByteTrack 2차(저신뢰) 매칭이 0.20~0.25 구간으로만 축소되어, 슬라이드 21에서 강조한 가림 대응 효과가 약해지는 파라미터 불일치가 있음",
+            "TRACK_FPS=30이 하드코딩되어 track_buffer가 실제 FPS에 따라 늘어남(12fps에서 2.5s). FPS가 12 미만이면 LOST_SEC 확정 뒤 같은 ID가 되살아나 prev=None 새 트랙으로 처리될 수 있음. MERGE_DIST(화면 폭 19%, 약 120px)가 커서 동시 출입 시 잘못된 ID 출신 승계 위험이 있음",
+            "LINK_GUARD 등은 '가상 상황 실험(door_sim.py)'으로 골랐다고 주석에 있으나 해당 자료와 결과가 없음. 동시 출입·가림 시나리오별 카운트 정확도 실측이 없어 슬라이드 6의 '누락 없이 카운트' 주장의 근거가 없음. IOU 조정도 전후 수치가 없음"
+          ],
+          "rationale": "출신 기반 전이, 지연 OUT 확정, 히스테리시스, 가림 승계 등 엣지 상황을 겨냥한 판정 로직은 정교하고 코드와 정합한다. 다만 검출 conf와 ByteTrack 임계값의 불일치, FPS 의존 파라미터, 정량 검증 부재가 주요 누락이다."
+        },
+        {
+          "id": 5,
+          "name": "예외 처리 및 운영 안정성",
+          "score": 61,
+          "evidence": [
+            "재연결이 구현되어 있음: door_master.py worker_loop는 2초마다 재연결하고 send/recv 타임아웃은 5s, door_worker.py MaskerLink는 마스커가 끊겨도 추론을 계속하며 2초마다 재연결, 마스커 측은 작업자 연결마다 스레드와 finally에서 정리함",
+            "door_masker.py는 door_total.json에 write_atomic(tmp→os.replace)으로 인원을 영속화해 재시작해도 유지하고, RUN_ID로 마스터 재시작을 감지하며, 제어 포트는 3s 타임아웃과 ctrl_done 2s 대기로 응답함",
+            "종료 처리: master는 q 입력/KeyboardInterrupt, masker는 stop_event·finally 로그가 있음. 장기 구동 시 door_master 정지 문제를 슬라이드 50·54에서 스스로 밝힘"
+          ],
+          "weaknesses": [
+            "보고서가 인정한 카메라 정지 문제에 코드 대비가 없음. door_master.py FrameGrabber._run은 read 실패 시 5ms 대기 후 무한 재시도만 하고 VideoCapture 재오픈·워치독·cam_fps 0 감지 후 복구가 없으며, cap.read()가 블로킹되면 스레드가 영구 정지함. cap.release()도 없음",
+            "door_worker.py는 ConnectionError/OSError만 잡아 model.predict나 imdecode 실패(None 이미지)로 예외가 나면 프로세스가 종료됨. door_masker.py process_loop에도 예외 처리가 없어 판정 스레드가 죽어도 X11 모드에서는 화면만 남은 채 멈춤",
+            "로그가 stdout에만 있어 파일 로그나 헬스체크가 없음. 작업자 연결 끊김으로 프레임이 빠지면 판정이 끊기는데, 이를 상위(웹)에 알리는 상태값은 workers 수뿐임"
+          ],
+          "rationale": "네트워크 재연결과 인원 영속화는 잘 설계되었다. 그러나 이미 확인된 핵심 장애인 카메라 정지에 대한 코드 대비가 전혀 없고, 처리 스레드 예외 처리도 빠져 있어 주요 누락이 있다."
+        }
+      ],
+      "summary": "판정 로직은 정교하나 정량 검증·카메라 장애 대비 부족",
+      "improvements": [
+        "동시 출입·가림·재등장·경계 진동 시나리오별로 반복 실측(실제 인원 대비 카운트 오차율)을 수행하고 door_sim.py 결과를 함께 제시해 LINK_GUARD·MERGE_RATIO·IOU 값을 정량 근거로 확정할 것",
+        "ByteTrack 파라미터를 검출과 정합시킬 것: 작업자 conf를 track_low_thresh(0.1)까지 낮추고 high/new 임계값으로 거르며, TRACK_FPS를 실측 FPS에 연동해 track_buffer 시간이 LOST_SEC보다 확실히 짧도록 보장",
+        "door_master.py에 카메라 워치독을 추가할 것: 일정 시간 새 프레임이 없으면 VideoCapture를 release 후 재오픈하고 실패 시 프로세스를 재시작(systemd Restart=always)하며, 파일 로그와 24시간 구동 테스트로 검증"
+      ]
+    }
+  ]
+}

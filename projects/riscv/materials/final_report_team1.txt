@@ -1,0 +1,559 @@
+2026/09/16
+  RV32i_CPU_APB
+  FINAL PROJECT
+  발표 : 1조
+  Overview  01
+  System Architecture  02
+Contents  Memory Map  03
+  RV32i-Multi Cycle  04
+  UVM Verification  05
+  APB Requester & Completer  06
+  SW Verification  07
+  Troubleshooting,
+  Conclusion and Discussion  08
+01. Overview
+  개요  역할
+  김기원
+  RV32i Multi Cycle CPU  - RV32i Multi Cycle 설계 및 검증
+  김민식
+  Verification  - CPU UVM 검증
+  APB Requester  UVM& SW
+  김태수
+  - APB Requester & Completer 설계 및 검증
+  APB Completer
+  정명훈
+  BRAM  GPI  GPO  - CPU SW 검증
+01. Overview
+  목적  Why ? Single -> Multi Cycle
+  가장 긴 CriticalPath 기준으로 고정된 클럭 주기
+  → 짧은 명령어일수록 Time slack 손해
+IL command  R type command
+01. Overview
+  목적  How ? Single -> Multi Cycle  장점
+  (1) 각 stage의 Propagation Delay가 짧아짐
+Multi-cycle State 구성 & 사이클 비교  → Time slack 확보
+  (2) 확보된 Time slack 만큼 클럭 주기 ↓
+  = 주파수를 높일 수 있음
+  STATE  OPERATION
+  FETCH  PC 값 갱신
+  VS  DECODE  레지스터 파일 읽기
+  EXECUTE  ALU 연산
+  MEM  데이터 메모리 접근
+  WB  레지스터 파일 쓰기
+02. System Architecture
+  명령어  명령어  버스 프로토콜  메모리&주변장치
+  저장하는 메모리  해석&실행 연산장치  변환
+03. Memory Map
+  Memory Address
+  전체 주소 공간을 RAM과 GPI/GPO/GPIO/UART 영역으로 나눈 메모리 맵
+  주소 범위  영역  용량
+  0x1000_0000 ~ 0x1000_FFFF  RAM  64 KB
+  0x1001_0000 ~ 0x1FFF_FFFF  Reserved  256 MB
+  0x2000_0000 ~ 0x2000_00FF  GPI  256B
+  0x2000_0100 ~ 0x2000_01FF  GPO  256B
+  0x2000_0200 ~ 0x2000_02FF  GPIO  256B
+  0x2000_0300 ~ 0x2000_03FF  UART  256B
+  03. Memory Map
+  Stack Point
+  함수 진입 시 sp를 기준으로 32바이트 스택 프레임을 할당하고 ra와 s0를 저장한 뒤 프레임 포인터를 설정하는 스택 동작 예시
+  PC 주소  Hex 코드  RISC-V 어셈블리  동작 및 설명
+  0x00  20000113  addi sp, zero, 512  스택 포인터 초기화 (sp = 512)
+  main 스택 프레임 32바이트 할당
+  0x04  fe010113  addi sp, sp, -32
+  (sp = 480)
+  0x08  00112e23  sw ra, 28(sp)  스택 주소 508에 ra 저장 (480 + 28)
+  0x0C  00812c23  sw s0, 24(sp)  스택 주소 504에 s0 저장 (480 + 24)
+  0x10  02010413  addi s0, sp, 32  프레임 포인터 설정 (s0 = 512)
+Main frame
+04. RISCV RV32i-Multi Cycle
+  Type 구성  32bit 명령어 구성  R&I Type 타입 명령어 구성  I-Type의 경우 SUB명령어 제외 9개
+  opcode  Type  command  연산
+  0110011(0x33)  R  ADD  rd = rs1 + rs2
+  0110011(0x33)  R  SUB  rd = rs1 - rs2
+  0110011(0x33)  R  SLL  rd = rs1 << rs2 [4:0]
+  0110011(0x33)  R  SLT  rd = ((signed) rs1 < (signed) rs2) ? 1:0
+  0110011(0x33)  R  SLTU  rd = (rs1 < rs2)?1:0
+  0110011(0x33)  R  XOR  rd = rs1 ˆ rs2
+  0110011(0x33)  R  SRL  rd = rs1 >> rs2 [4:0]
+  0110011(0x33)  R  SRA  rd = (signed )rs1 >>> rs2 [4:0]
+  0110011(0x33)  R  OR  rd = rs1 | rs2
+  0110011(0x33)  R  AND  rd = rs1 & rs2
+  0000011(0x03)  I  ADDI  rd = rs1 + imm
+04. RISCV RV32i-Multi Cycle
+  제어 신호
+  신호명  설명
+  pc_en  PC 레지스터 갱신 enable (FETCH state에서만 1)
+  rf_we  레지스터 파일 쓰기 enable
+  alu_srcsel  ALU 두 번째 입력 선택 (0=rs2, 1=immediate)
+  rf_srcsel  WB_MUX 선택 신호 — 레지스터 파일에 쓸 값
+  branch, jal, jalr  각각 Branch/JAL/JALR 명령어임을 나타내는 신호
+  bus_we  APB 쓰기 트랜잭션 여부
+  bus_addr  ALU가 계산한 주소값
+  bus_wdata  저장할 레지스터 값 (rs2)
+  ready  APB 트랜잭션 완료 신호
+  bus_rdata  APB에서 읽어온 데이터
+04. RISCV RV32i-Multi Cycle
+  R-type 시뮬레이션 시나리오
+Inst  fucn7  rs2  rs1  func3  rd  opcode  instr_rom
+ADD  0000_000  0_0010  0_0001  000  0_0011  011_0011  h'0020_81b3
+SUB  0100_000  0_0010  0_0001  000  0_0100  011_0011  h'4020_8233
+XOR  0000_000  0_0010  0_0001  100  0_0101  011_0011  h'0020_c2b3
+OR  0000_000  0_0010  0_0001  110  0_0110  011_0011  h'0020_e333
+AND  0000_000  0_0010  0_0001  111  0_0111  011_0011  h'0020_f3b3
+SLL  0000_000  0_0010  0_0001  001  0_1000  011_0011  h'0020_9433
+SRL  0000_000  0_0010  0_0001  101  0_1001  011_0011  h'0020_d4b3
+SRA  0100_000  0_0010  0_0001  101  0_1010  011_0011  h'4020_d533
+SLT  0000_000  0_0010  0_0001  010  0_1011  011_0011  h'0020_a5b3
+SLTU  0000_000  0_0010  0_0001  011  0_1100  011_0011  h'0020_b633
+04. RISCV RV32i-Multi Cycle
+  R-type 시뮬레이션
+  Register의 [1] = 3, [2] = 4로 초기화
+  ADD  SUB  XOR  OR  AND
+  3+4=7  3 - 4 = -1  011(3) xor 100(4) = 111(7)  011(3) or 100(4) = 111(7)  011(3) and 100(4) = 000(0)
+04. RISCV RV32i-Multi Cycle
+  R-type 시뮬레이션
+  Register의 [1] = 3, [2] = 4로 초기화
+  0000_0000_0000_0000_0000_0000_0000_0011  0000_0000_0000_0000_0000_0000_0000_0011
+  r1(3) Left shift r2(4)bit  r1(3) right shift r2(4)bit
+  0000_0000_0000_0000_0000_0000_0011_0000  0000_0000_0000_0000_0000_0000_0000_0000
+  32+16 = 48
+  SLL  SRL  SRA  SLT  SLTU
+  MSB(0) 4bit shift right = 0  signed(3) < signed(4) True  unsigned(3) < unsigned(4) True
+04. RISCV RV32i-Multi Cycle
+  S-type 시뮬레이션 시나리오 Register Address(X3)에 연산 값(-3 + 4) 저장
+  Inst  fucn7  rs2  rs1  func3  imm  opcode  instr_rom
+  SB  0000_000  0_0010  0_0011  000  0_0000  010_0011  h'0020_81b3
+  SH  0000_000  0_0010  0_0011  001  0_0010  010_0011  h'4020_8233
+  SW  0000_000  0_0010  0_0011  100  0_0100  010_0011  h'0020_c2b3
+  시뮬레이션 Register의 [1] = -3, [2] = 4로 초기화
+  Word Byte
+  Store Byte  Half Byte
+  SB X2, 0(x3)  HW X2, 2(x3)  SW X2, 4(x3)
+  dwe가 1일 때 주소에 값이 저장  다음 clk rising edge에 SW값이
+  출력
+  다음 clk rising edge에 SH값이
+  출력
+  다음 clk rising edge에 SB값이
+  출력
+04. RISCV RV32i-Multi Cycle
+ I, IL, B, L, J-type 시뮬레이션 시나리오
+Inst  fucn7  rs2  rs1  func3  imm  opcode  instr_rom
+ADDI  0000_011  0_0100  0_0000  000  0_0101  001_0011  h'0640_0293
+ SW  0000_000  0_0101  0_0000  010  0_0000  010_0011  h'0050_2023
+ LW  0000_000  0_0000  0_0000  010  0_0110  000_0011  h'0000_2303
+BNE  0000_000  0_0110  0_0101  001  1_0000  110_0011  h'0062_9863
+ LUI  x  x  x  x  0_1000  011_0111  h'1234_5437
+ JAL  x  x  x  x  0_1001  110_1111  h'0080_04ef
+04. RISCV RV32i-Multi Cycle
+  I-type 시뮬레이션
+  Register 5번지에 100(h'64)값 저장
+  Addi x5, x0, 100
+  Write enable high일 때 5번지에 result(0+100) 저장
+  Register write enable high
+  64
+04. RISCV RV32i-Multi Cycle
+  IL-type 시뮬레이션
+  Register 6번지에 메모리에 저장되어 있던 100(h'64)값 저장
+  LW x5, x6,
+  0(x0)
+  현재 pc값 + imm(0)
+  6번지에 64값 저장
+04. RISCV RV32i-Multi Cycle
+  B-type 시뮬레이션
+  B-type 결과가 False이므로 pc값 +4
+  BNE x5, x6 16
+  False이므로 주소값 정상적으로 +4
+  rs1==rs2 -> False
+  False = b_taken low
+  Branch high
+04. RISCV RV32i-Multi Cycle
+  L-type 시뮬레이션
+  L-type 결과가 register 8번지에 저장
+  LUI x8, 0x12345
+  8번지에 1234500 저장
+  Register write enable high
+04. RISCV RV32i-Multi Cycle
+  J-type 시뮬레이션
+  L-type 결과가 register 8번지에 저장
+  JAL x9, 4
+  현재 pc값(24) +
+  imm(4)값을 register
+  9번지에 저장
+  Branch high
+  Pc(24) + imm(4) = 1c
+05. UVM Verification
+  R&I Type 명령어
+총 19개, 각 명령어 시작 전 init_sequence에서 reset & 레지스터 초기값 설정
+→ 레지스터의 값이 x또는 0일 경우 신뢰성 있는 검증이라 생각되지 않음
+05. UVM Verification
+  Timing  PASS 조건
+  Dirve : negedge clk  - 4개 신호의 제어 신호 조건이 모두 만족시 pass판단
+  Monitor : #1step posedge clk
+  - monitor가 매 클럭의 상승에지 마다 값을 체크 함
+  daddr (alu_result) : posedge clk #1  - pass와 fail은 3사이클 단위로 판단함
+  제어 신호  조건  설명
+  rf_we  1  레지스터 write
+  alusrc_sel  0 : R (rs2), 1 : I (imm)  타입별 소스 선택
+  alu_control  명령어에 맞는 control 신호  명령어별
+  alu 연산 선택
+  daddr(alu_result)  expexted alu_result일치  실제 연산 결과와
+  예상 결과 일치
+05. UVM Verification
+  Coverage  Cross
+● reset  : 0,1  ● R command x rs1 x rs2 = 10 x 1024
+● R-type  : 10개  ● I command x imm = 6 x 4096
+● I-type  : 일반 6개, shift 3개  ● I shift command x imm(0~31) = 3 x 32
+● rs1, rs2  : 0~31  ● R command x rd = 10 x 32
+● imm  : signed 12 bit [-2048~2047]  ● I command x rd = 6 x 32
+● rd  : 0~31  ● I shift command x rd = 3 x 32
+05. UVM Verification
+  시나리오
+  필요한 평균 횟수 : R (1024) =  ≈ 7,689, I (4096) ≈ 36,434, I_shift (32) ≈ 130
+  약 2배의 횟수로 테스트 진행
+05. UVM Verification
+  결과
+● 각 명령어 전 레지스터 초기화 : 19 x 31 = 589
+● PASS 예상 : (15,000 x 9) + ( 65,000 x 6) + (300 x 3) + 589 = 541,489, 예상 일치 & Coverage 100% 달성
+06. APB Requester & Completer
+  APB Requester& Completer
+  CPU bus 신호
+  Requester (bus_addr, bus_wdata, transfer, bus_we)
+  → APB 프로토콜 변환
+  Address
+  주소 → PSEL0~6 선택
+  Decoder
+  Mux  선택된 Completer의 PREADY/PRDATA만 CPU로 전송
+  Completer APB 프로토콜에 따라 응답
+  요청 신호 (Requester → Completer)
+  PADDR, PWDATA, PWRITE, PENABLE, PSEL
+  응답 신호 (Completer → Requester)
+  PREADY, PRDATA
+  Memory
+  BRAM : 0x1000_0000 ~ 0x1000_FFFF
+  Map
+06. APB Requester & Completer
+  APB Requseter  FSM
+06. APB Requester & Completer
+  Address Decoder  APB Mux
+ 상위 4비트 판단 : RAM or Peripheral
+ → 비교 로직 단순화
+06. APB Requester & Completer
+  APB_GPI  APB_GPO
+  CTR: 채널 enable, IDR: 스위치 상태 Read  CTR·ODR 조합(AND)으로 LED drive
+  PADDR [0]
+  PADDR [0]
+  PADDR [0]  PADDR [0]
+ CTR : 입력받을 스위치 활성화  CTR : 출력보낼 LED 활성화
+ IDR : 스위치 값 반영  ODR : 출력할 LED
+  LED = CTR & ODR
+06. APB Requester & Completer
+  시뮬레이션 시나리오
+  검증 항목  신호  예상 동작
+  APB Requester
+  1  STATE  PSEL0, PENABLE, ready  PSEL0 → PENABLE → ready 순서로 1
+  2  Address Decode  PSEL0 ~ PSEL6  BRAM : PSEL0
+  3  Address, Data HOLD  PADDR, PWDATA, PWRITE  다음 SETUP 전까지 값 유지
+  APB Completer (BRAM)
+  ACCESS 상태에서 PWRITE = 1 쓰기,
+  4  BRAM Write  PWDATA, PWRITE, PREADY0
+  PENABLE = 1 이후 상승 엣지에 dmem에 저장
+  ACCESS 상태에서 PWRITE = 0 읽기,
+  5  BRAM Read  PADDR, PWDATA, PWRITE, PREADY
+  dmem 값 PRDATA0, ready와 함께 bus_rdata로 전달
+06. APB Requester & Completer
+  시뮬레이션
+#1 STATE  ONLY PSEL0
+#2 Address Decode
+>> #1 & #2 예상 동작과 일치
+  transfer == 1  next_clock  ready == 1
+  IDLE  SETUP  ACCESS
+  addr_dec_en 0  addr_dec_en 1  addr_dec en 1
+  PSEL0 0  PSEL0 1  PSEL0 1
+  PENABLE 0  PENABLE 0  PENABLE 1
+  PREADY 0  PREADY 0  PREADY 1
+06. APB Requester & Completer
+  시뮬레이션
+#3 Address, Data HOLD
+>> #3 예상 동작과 일치
+  transfer = 1
+  다음 SETUP까지
+  PADDR, PWDATA 유지
+06. APB Requester & Completer
+  시뮬레이션  PADDR : H’1EC = D’488 PADDR : H’1E8 = D’492
+#4 BRAM Write  byte address  byte address
+  D’492 /4 = D’123  D’492 /4 = D’122
+#5 BRAM Read
+>> #4 & #5 예상 동작과 일치
+  PWRITE = 1  PWRITE = 1  PWRITE = 0  PWRITE = 0
+  dmem 쓰기  dmem 쓰기  dmem 읽기  dmem 읽기
+06. APB Requester & Completer
+  시뮬레이션 시나리오
+대상  검증 항목  신호  예상 동작
+  ACCESS 상태 PWRITE=1 쓰기,
+  1  GPI CTR Write  GPI_CTR
+  PENABLE=1 이후 상승 엣지에 GPI_CTR에 저장
+APB  PADDR, GPI_CTR, GPI_IN,  ACCESS 상태에서 PWRITE=0 읽기,
+  2  GPI IDR Read
+GPI  PRDATA1, PREADY1  GPI_IDR가 PREADY1와 함께 PRDATA1로 bus_rdata
+  PADDR, PWDATA,  ACCESS 상태 PWRITE=1 쓰기, PENABLE=1 이후
+  3  BRAM Write
+  PWRITE, PREADY0  GPI_IDR을 읽은 값(PWDATA)이 dmem[123]에 저장
+  PADDR[2], PWDATA,  ACCESS 상태 PWRITE=1 쓰기,
+  4  GPO CTR/ODR Write
+APB  PWRITE, PREADY2  PADDR[2]=0이면 GPO_CTR, =1이면 GPO_ODR저장
+GPO  GPO_CTR, GPO_ODR 갱신
+  5  led Output  GPO_CTR, GPO_ODR, led
+  led = GPO_ODR[7:0] & GPO_CTR[7:0]
+  시뮬레이션 SW
+  GPI.CTR
+  GPI.IDR
+  GPO.CTR
+  GPO.ODR
+06. APB Requester & Completer
+  시뮬레이션  #1 GPI CTR Write
+  >> GPI.CTR 쓰기 동작 정상
+  transfer = 1
+  sw : ff
+  GPI.CTR
+  ff
+  WRITE
+  CTR : ff
+  → IDR : ff
+06. APB Requester & Completer
+  시뮬레이션  #2 GPI CTR Read #3 BRAM Write
+  >> GPI.CTR 읽기 & BRAM 쓰기 동작 정상
+  transfer = 1  transfer = 1
+  GPI.IDR  BRAM
+  READ  WRITE
+  PADDR : H’1EC = D’492
+  byte address
+  D’492 /4 = D’123
+06. APB Requester & Completer
+  시뮬레이션 #4 GPO CTR/ODR Write #5 LED output
+  >> GPO.CTR,ODR 쓰기 & LED output 동작 정상  transfer = 1
+  GPO
+  transfer = 1
+  GPO
+  WRITE  WRITE
+  LED
+  h’55 & h’05 = h’5
+  ADDR :CTR  ADDR :ODR
+  PWDATA  PWDATA
+  CTR
+  ODR
+07. SW Verification
+  개념
+  -  CPU는 High level 문법 인식 X
+  -  High level 문법 → Machine Code
+07. SW Verification
+  시뮬레이션 시나리오
+  검증 항목  신호  예상 동작
+  jal
+1  Jump  pc  Pc+imm 값으로 jump  1
+  imm_ext
+  branch
+  rs1, rs2를 비교 후 조건에 따른
+2  Bge  alu_control
+  주소로 이동
+  rs1, rs2
+  addi
+  alu_result  메모리의 a값 read 후 1을
+3  a++
+  PADDR  증가시킨 값 메모리에 저장
+  PWDATA
+  PADDR
+  10회 반복 후 sum 주소에
+4  Result  PWDATA
+  누적합 저장
+  PWRITE
+  instr_addr
+  while(1) 분기 주소에 진입 후
+5  Loop  pc
+  PC가 동일 주소에 고정
+  pc_imm
+07. SW Verification
+  시뮬레이션 - Jump
+  PC = 32Jump
+  1.j.L2
+  64
+  ＋
+  2.jal
+07. SW Verification
+  시뮬레이션 시나리오
+  검증 항목  신호  예상 동작
+  jal
+1  Jump  pc  Pc+imm 값으로 jump
+  imm_ext
+  branch
+  rs1, rs2를 비교 후 조건에 따른
+2  Bge  alu_control  2
+  주소로 이동
+  rs1, rs2
+  addi
+  alu_result  메모리의 a값 read 후 1을
+3  a++
+  PADDR  증가시킨 값 메모리에 저장
+  PWDATA
+  PADDR
+  10회 반복 후 sum 주소에
+4  Result  PWDATA
+  누적합 저장
+  PWRITE
+  instr_addr
+  while(1) 분기 주소에 진입 후
+5  Loop  pc
+  PC가 동일 주소에 고정
+  pc_imm
+07. SW Verification
+  시뮬레이션 - Bge
+  Ram_file[14] = 0(load)
+  4.load
+  3.Data
+  1.lw a4,-20(s0)
+  2.we
+07. SW Verification
+  시뮬레이션 - Bge
+Ram_file[15] = 9
+  0
+  3. 0+9
+  1.addi a5, 9
+  4.we
+  2.alusrc_sel
+  0
+  9
+07. SW Verification
+  시뮬레이션 - Bge
+  PC = PC - 32
+  3. 9≥0
+  1.ble a4,a5,L3
+  2.branch&b_taken&alu_control
+07. SW Verification
+  시뮬레이션 시나리오
+  검증 항목  신호  예상 동작
+  jal
+1  Jump  pc  Pc+imm 값으로 jump
+  imm_ext
+  3
+  branch
+  rs1, rs2를 비교 후 조건에 따른
+2  Bge  alu_control
+  주소로 이동
+  rs1, rs2
+  addi
+  alu_result  메모리의 a값 read 후 1을
+3  a++
+  PADDR  증가시킨 값 메모리에 저장
+  PWDATA
+  PADDR
+  10회 반복 후 sum 주소에
+4  Result  PWDATA
+  누적합 저장
+  PWRITE
+  instr_addr
+  while(1) 분기 주소에 진입 후
+5  Loop  pc
+  PC가 동일 주소에 고정
+  pc_imm
+07. SW Verification
+ 시뮬레이션 - a++
+  Ram_file[15] = 0 (load)
+  1.lw a5, -20(s0)
+  2.alusrc_sel
+  3.ready&we  4.data load
+07. SW Verification
+  시뮬레이션 - a++
+  Ram_file[15] = 1 ( 0+1)
+  1.addi a5,a5,1
+  2.we&alusrc_sel
+  1
+07. SW Verification
+  시뮬레이션 - a++
+  Dmem [123] = 1 (0+1)
+  1.sw
+  1.addi  a5,-20(s0)
+  a5,a5,1  123=492/4
+  1
+  3.we&transfer
+  2.alusrc_sel
+  512-20=492
+  2.we&alusrc_sel
+07. SW Verification
+  시뮬레이션 시나리오
+  검증 항목  신호  예상 동작
+  jal
+1  Jump  pc  Pc+imm 값으로 jump
+  imm_ext
+  branch
+  rs1, rs2를 비교 후 조건에 따른
+2  Bge  alu_control
+  주소로 이동
+  rs1, rs2
+  addi
+  alu_result  메모리의 a값 read 후 1을
+3  a++
+  PADDR  증가시킨 값 메모리에 저장
+  PWDATA
+  PADDR
+  10회 반복 후 sum 주소에
+4  Result  PWDATA
+  누적합 저장
+  PWRITE
+  instr_addr
+  while(1) 분기 주소에 진입 후
+5  Loop  pc
+  PC가 동일 주소에 고정
+  pc_imm
+07. SW Verification
+  시뮬레이션 - Result
+  Dmem [122] = 55 (0+1.. + 10)
+  122= 488/4
+07. SW Verification
+  시뮬레이션 시나리오
+  검증 항목  신호  예상 동작
+  jal
+1  Jump  pc  Pc+imm 값으로 jump
+  imm_ext
+  branch
+  rs1, rs2를 비교 후 조건에 따른
+2  Bge  alu_control
+  주소로 이동
+  rs1, rs2
+  addi
+  alu_result  메모리의 a값 read 후 1을
+3  a++
+  PADDR  증가시킨 값 메모리에 저장
+  PWDATA
+  PADDR
+  10회 반복 후 sum 주소에
+4  Result  PWDATA
+  누적합 저장
+  PWRITE
+  instr_addr
+  while(1) 분기 주소에 진입 후
+5  Loop  pc
+  PC가 동일 주소에 고정
+  pc_imm
+07. SW Verification
+  시뮬레이션 - Loop
+  PC = 4C 고정
+  3.
+  주소값 '4C' 고정
+  1.ble a4,a5,L3
+  False → b_taken(low)
+  2.branch
+08. Troubleshooting
+  트러블  결과
+  FAIL = 332527 발생, 예상연산 ≠ 실제연산  FAIL = 0
+  트러블 원인  해결 방법
+  결과 값을 상승 에지 1step에서 인식  결과에 해당하는 값을 clocking을
+  거치지 않고 상승 에지 1ns뒤에 인식
+ 08. 결론 및 고찰
+1) 결론
+ (1) C 코드 기반 누적 sum이 APB Bus를 통해 BRAM에 저장됨을 확인
+ (2) pass count = 541,489 예상값과 일치, 계획한 coverage 검증률 100% 달성
+2) 고찰
+ (1) 동작과 상관없는 신호들이 High가 되는 것을 확인함으로써, 향후 전력 소비 절감을 위한 최적화 필요
+ (2) APB Requester, Completer 추후 GPIO, UART 확장 까지 고려하여 설계
+ (3) coverage 구성의 불완전함, R타입의 경우 각 레지스터 (rs1, rs2)에 대한 접근 보다
+  모든 값의 연산 여부를 체크할 필요가 있다 생각됨 추후 Coverage조건을 확장하여
+  검증의 신뢰성을 높이고자 함
